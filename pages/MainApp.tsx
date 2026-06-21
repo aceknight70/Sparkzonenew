@@ -67,25 +67,25 @@ import {
 } from '../mockData';
 
 type OverlayState = 
-    | { type: 'world'; id: number }
-    | { type: 'story-read'; id: number }
-    | { type: 'story-edit'; id: number }
-    | { type: 'party-view'; id: number }
-    | { type: 'party-edit'; id: number }
-    | { type: 'character-view'; id: number }
-    | { type: 'character-edit'; id: number }
-    | { type: 'world-edit'; id: number }
+    | { type: 'world'; id: number | string }
+    | { type: 'story-read'; id: number | string }
+    | { type: 'story-edit'; id: number | string }
+    | { type: 'party-view'; id: number | string }
+    | { type: 'party-edit'; id: number | string }
+    | { type: 'character-view'; id: number | string }
+    | { type: 'character-edit'; id: number | string }
+    | { type: 'world-edit'; id: number | string }
     | { type: 'world-create' }
     | { type: 'character-create' }
-    | { type: 'story-create'; initialData?: { synopsis?: string } }
+    | { type: 'story-create'; initialData?: { synopsis?: string, name?: string } }
     | { type: 'party-create' }
     | { type: 'meme-create' }
     | { type: 'profile-edit' }
     | { type: 'spark-clash' }
-    | { type: 'comments'; postId: number }
-    | { type: 'community'; id: number }
+    | { type: 'comments'; postId: number | string }
+    | { type: 'community'; id: number | string }
     | { type: 'community-create' }
-    | { type: 'community-edit'; id: number }
+    | { type: 'community-edit'; id: number | string }
     | { type: 'shop' };
 
 const WorldOverlayView: React.FC<{
@@ -1034,8 +1034,8 @@ const MainApp: React.FC = () => {
                 status: 'Published',
                 ...worldData,
                 id: worldId,
-                authorId: currentUser.id.toString(),
-                authorName: currentUser.name,
+                authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
+                authorName: currentUser.name || firebaseUser?.displayName || 'Guest Artist',
                 createdAt: worldData.createdAt || new Date().toISOString()
             };
             try {
@@ -1064,8 +1064,8 @@ const MainApp: React.FC = () => {
             const dbChar = {
                 ...charData,
                 id: charId,
-                authorId: currentUser.id.toString(),
-                authorName: currentUser.name,
+                authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
+                authorName: currentUser.name || firebaseUser?.displayName || 'Guest Artist',
                 createdAt: charData.createdAt || new Date().toISOString()
             };
             try {
@@ -1093,8 +1093,8 @@ const MainApp: React.FC = () => {
             const dbStory = {
                 ...storyData,
                 id: storyId,
-                authorId: currentUser.id.toString(),
-                authorName: currentUser.name,
+                authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
+                authorName: currentUser.name || firebaseUser?.displayName || 'Guest Artist',
                 createdAt: storyData.createdAt || new Date().toISOString(),
                 chapters: storyData.chapters || []
             };
@@ -1126,9 +1126,9 @@ const MainApp: React.FC = () => {
             const dbParty = {
                 ...partyData,
                 id: partyId,
-                authorId: currentUser.id.toString(),
-                authorName: currentUser.name,
-                hostId: partyData.hostId || currentUser.id.toString(),
+                authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
+                authorName: currentUser.name || firebaseUser?.displayName || 'Guest Artist',
+                hostId: partyData.hostId || (firebaseUser ? firebaseUser.uid : currentUser.id.toString()),
                 createdAt: partyData.createdAt || new Date().toISOString()
             };
             try {
@@ -1173,7 +1173,7 @@ const MainApp: React.FC = () => {
                     name: memeData.name,
                     imageUrl: memeData.imageUrl,
                     status: 'Published',
-                    authorId: currentUser.id.toString(),
+                    authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
                     createdAt: new Date().toISOString()
                 });
             } catch (err) {
@@ -1187,21 +1187,24 @@ const MainApp: React.FC = () => {
         const commId = overlay?.type === 'community-create' ? Date.now() : communityData.id;
         const commIdStr = String(commId);
 
-        let resolvedCommunity: Community;
+        let resolvedCommunity: any;
         if (overlay?.type === 'community-create') {
             resolvedCommunity = { 
                 ...communityData, 
-                id: commId, 
-                authorId: currentUser.id as any, 
-                leaderId: currentUser.id as any,
-                members: [{ userId: currentUser.id, role: 'Leader' as any, joinedAt: new Date().toISOString().split('T')[0] }],
+                id: isOffline ? commId : commIdStr, 
+                authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(), 
+                leaderId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
+                members: [{ userId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(), role: 'Leader' as any, joinedAt: new Date().toISOString().split('T')[0] }],
                 level: 1, 
                 xp: 0, 
                 showcase: [], 
                 feed: [] 
-            } as Community;
+            };
         } else {
-            resolvedCommunity = communityData;
+            resolvedCommunity = {
+                ...communityData,
+                id: isOffline ? communityData.id : String(communityData.id)
+            };
         }
 
         if (isOffline) {
@@ -1381,7 +1384,7 @@ const MainApp: React.FC = () => {
 
         switch (overlay.type) {
             case 'world': {
-                const world = worlds.find(w => w.id === overlay.id);
+                const world = worlds.find(w => String(w.id) === String(overlay.id));
                 if (!world) return null;
 
                 return (
@@ -1407,7 +1410,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'world-edit':
-                const worldToEdit = worlds.find(w => w.id === overlay.id);
+                const worldToEdit = worlds.find(w => String(w.id) === String(overlay.id));
                 if (!worldToEdit) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-hidden">
@@ -1415,7 +1418,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'character-view':
-                const char = characters.find(c => c.id === overlay.id);
+                const char = characters.find(c => String(c.id) === String(overlay.id));
                 if (!char) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-y-auto">
@@ -1436,7 +1439,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'character-edit':
-                const charToEdit = characters.find(c => c.id === overlay.id);
+                const charToEdit = characters.find(c => String(c.id) === String(overlay.id));
                 if (!charToEdit) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-y-auto">
@@ -1444,7 +1447,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'story-read':
-                const story = stories.find(s => s.id === overlay.id);
+                const story = stories.find(s => String(s.id) === String(overlay.id));
                 if (!story) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-y-auto">
@@ -1468,7 +1471,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'story-edit':
-                const storyToEdit = stories.find(s => s.id === overlay.id);
+                const storyToEdit = stories.find(s => String(s.id) === String(overlay.id));
                 if (!storyToEdit) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-hidden">
@@ -1476,7 +1479,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'party-view':
-                const party = parties.find(p => p.id === overlay.id);
+                const party = parties.find(p => String(p.id) === String(overlay.id));
                 if (!party) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-hidden">
@@ -1500,7 +1503,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'party-edit':
-                const partyToEdit = parties.find(p => p.id === overlay.id);
+                const partyToEdit = parties.find(p => String(p.id) === String(overlay.id));
                 if (!partyToEdit) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-y-auto">
@@ -1531,7 +1534,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'comments':
-                const post = posts.find(p => p.id === overlay.postId);
+                const post = posts.find(p => String(p.id) === String(overlay.postId));
                 if (!post) return null;
                 const postComments = allComments.filter(c => c.postId === overlay.postId);
                 return (
@@ -1547,7 +1550,7 @@ const MainApp: React.FC = () => {
                     />
                 );
             case 'community':
-                const community = communities.find(c => c.id === overlay.id);
+                const community = communities.find(c => String(c.id) === String(overlay.id));
                 if (!community) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-y-auto">
@@ -1570,7 +1573,7 @@ const MainApp: React.FC = () => {
                     </div>
                 );
             case 'community-edit':
-                const commToEdit = communities.find(c => c.id === overlay.id);
+                const commToEdit = communities.find(c => String(c.id) === String(overlay.id));
                 if (!commToEdit) return null;
                 return (
                     <div className="fixed inset-0 z-50 bg-black animate-fadeIn overflow-y-auto">

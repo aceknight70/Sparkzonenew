@@ -46,7 +46,7 @@ const CommunityWorkshopPage: React.FC<CommunityWorkshopPageProps> = ({ community
     };
 
     const membersList = formData.members.map(m => {
-        const user = allUsers.find(u => u.id === m.userId);
+        const user = allUsers.find(u => String(u.id) === String(m.userId));
         return { ...m, user };
     }).filter(m => m.user);
 

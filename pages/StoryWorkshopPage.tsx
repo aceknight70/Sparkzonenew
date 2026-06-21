@@ -30,7 +30,7 @@ const StoryWorkshopPage: React.FC<StoryWorkshopPageProps> = ({ story: initialSto
     const [activeChapterId, setActiveChapterId] = useState<number | null>(story.chapters[0]?.id ?? null);
     const [isEditorVisible, setIsEditorVisible] = useState(false); // Mobile toggle
 
-    const activeChapter = story.chapters.find(c => c.id === activeChapterId);
+    const activeChapter = story.chapters.find(c => String(c.id) === String(activeChapterId));
 
     // --- Story Level Handlers ---
 

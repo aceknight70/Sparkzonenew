@@ -169,6 +169,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "imageUrl", "status", "authorId", "authorName", "description", "isPublic", "createdAt"]
+    },
+    "Meme": {
+      "title": "Meme",
+      "description": "User created meme creations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "name", "imageUrl", "status", "authorId", "createdAt"]
     }
   },
   "firestore": {
@@ -207,6 +222,10 @@
     "parties/{partyId}": {
       "schema": "Party",
       "description": "Lobby parties for synchronous play"
+    },
+    "memes/{memeId}": {
+      "schema": "Meme",
+      "description": "User created meme images"
     }
   }
 }

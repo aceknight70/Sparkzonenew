@@ -30,6 +30,7 @@ interface WorldPageProps {
     onJoinWorld?: (worldId: number) => void;
     activeLocationId?: number | null;
     onSelectLocationId?: (id: number | null) => void;
+    onEditWorld?: (worldId: number) => void;
 }
 
 // 6 Core tabs
@@ -58,7 +59,8 @@ const WorldPage: React.FC<WorldPageProps> = ({
     onPlayMusic, 
     onJoinWorld,
     activeLocationId: propActiveLocationId,
-    onSelectLocationId
+    onSelectLocationId,
+    onEditWorld
 }) => {
     // Current World object stored in local state for seamless mutations (moderation, settings, comments, live events)
     const [localWorld, setLocalWorld] = useState<World>(world);
@@ -447,6 +449,16 @@ const WorldPage: React.FC<WorldPageProps> = ({
 
                                             {/* Three-Dot Option Menu & Administrative Settings Hook */}
                                             <div className="flex items-center gap-2 self-start md:self-end">
+                                                {isAdmin && onEditWorld && (
+                                                    <button 
+                                                        id="world-workshop-shortcut"
+                                                        onClick={() => onEditWorld(localWorld.id)}
+                                                        className="px-3 py-1.5 bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-[11px] font-black tracking-wider uppercase text-white rounded-lg flex items-center gap-1.5 shadow-md shadow-violet-950/40 border border-violet-500/30 font-sans cursor-pointer transition-all hover:scale-[1.03]"
+                                                        title="Edit full world blueprint"
+                                                    >
+                                                        <span>✏️ Edit Blueprint</span>
+                                                    </button>
+                                                )}
                                                 {isAdmin && (
                                                     <button 
                                                         id="admin-settings-shortcut"

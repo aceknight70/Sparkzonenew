@@ -99,6 +99,7 @@ const WorldOverlayView: React.FC<{
     onPlayMusic: (url: string | null) => void;
     onJoinWorld: (worldId: number) => void;
     onStartConversation: (participantId: number) => number;
+    onEditWorld?: (worldId: number) => void;
 }> = ({
     world,
     onExit,
@@ -110,6 +111,7 @@ const WorldOverlayView: React.FC<{
     onPlayMusic,
     onJoinWorld,
     onStartConversation,
+    onEditWorld,
 }) => {
     const [currentView, setCurrentView] = useState<'World Home' | 'Channel Chat'>('World Home');
     const [activeLocationId, setActiveLocationId] = useState<number | null>(null);
@@ -163,6 +165,7 @@ const WorldOverlayView: React.FC<{
                 onSaveMeme={handleSaveMeme}
                 onPlayMusic={onPlayMusic}
                 onJoinWorld={onJoinWorld}
+                onEditWorld={onEditWorld}
             />
         </div>
     );
@@ -1391,6 +1394,7 @@ const MainApp: React.FC = () => {
                         onPlayMusic={handlePlayMusic}
                         onJoinWorld={handleJoinWorld}
                         onStartConversation={handleStartConversation}
+                        onEditWorld={(id) => handleOverlay({ type: 'world-edit', id })}
                     />
                 );
             }

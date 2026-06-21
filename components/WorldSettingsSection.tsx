@@ -20,11 +20,13 @@ interface WorldSettingsSectionProps {
     setWorldData: React.Dispatch<React.SetStateAction<World>>;
 }
 
-type SettingsTab = 'general' | 'roles' | 'mechanics' | 'safety' | 'danger';
+type SettingsTab = 'general' | 'blueprint' | 'roles' | 'mechanics' | 'safety' | 'danger';
 
 const WorldSettingsSection: React.FC<WorldSettingsSectionProps> = ({ worldData, setWorldData }) => {
     const [currentBannedWord, setCurrentBannedWord] = useState('');
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+    const [newTag, setNewTag] = useState('');
+    const [newKeyElement, setNewKeyElement] = useState('');
     
     // Role State
     const [selectedRole, setSelectedRole] = useState<WorldRole | null>(worldData.roles?.[0] || null);
@@ -129,6 +131,7 @@ const WorldSettingsSection: React.FC<WorldSettingsSectionProps> = ({ worldData, 
             {/* Tabs Header */}
             <div className="flex border-b border-violet-500/30 mb-6 overflow-x-auto scrollbar-hide">
                 <TabButton id="general" label="General" icon={<AdjustmentsIcon />} />
+                <TabButton id="blueprint" label="Blueprint & Identity" icon={<AdjustmentsIcon />} />
                 <TabButton id="roles" label="Roles" icon={<UsersIcon />} />
                 <TabButton id="mechanics" label="Mechanics" icon={<DiceIcon />} />
                 <TabButton id="safety" label="Safety & Access" icon={<ShieldCheckIcon />} />
@@ -167,6 +170,241 @@ const WorldSettingsSection: React.FC<WorldSettingsSectionProps> = ({ worldData, 
                                 className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-2 px-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
                             />
                             <p className="text-xs text-gray-500 mt-2">This message will be sent by the system when a user joins.</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* BLUEPRINT & IDENTITY TAB */}
+                {activeTab === 'blueprint' && (
+                    <div className="space-y-6 animate-fadeIn select-text text-left">
+                        <div className="bg-gray-900/50 border border-violet-500/30 rounded-lg p-6 space-y-4">
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider text-cyan-400">Core Identity Blueprint</h3>
+                            <p className="text-xs text-gray-400">Modify the foundational details of this lobby. Clear fields if you wish to remove them.</p>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">World Name</label>
+                                    <input 
+                                        type="text"
+                                        value={worldData.name || ''}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, name: e.target.value }))}
+                                        className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-1.5 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">Tagline</label>
+                                    <input 
+                                        type="text"
+                                        value={worldData.tagline || ''}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, tagline: e.target.value }))}
+                                        className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-1.5 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        placeholder="E.g. A floating archipelago above the mechanical rift..."
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">Synopsis</label>
+                                    <textarea 
+                                        value={worldData.synopsis || ''}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, synopsis: e.target.value }))}
+                                        rows={3}
+                                        className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-1.5 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+                                        placeholder="A comprehensive introduction for new visitors..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-900/50 border border-violet-500/30 rounded-lg p-6 space-y-4">
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider text-cyan-400">Canons, Rules & Prompts</h3>
+                            <p className="text-xs text-gray-400">Establish the behavioral protocols and entrance validations for roleplay scenes.</p>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">Canon Rules (Separate with new lines)</label>
+                                    <textarea 
+                                        value={worldData.rules || ''}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, rules: e.target.value }))}
+                                        rows={4}
+                                        className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-1.5 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                        placeholder="Respect co-players&#10;No godmodding or powergaming&#10;Check content ratings before commencing scene..."
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">Entrance Gate Prompt</label>
+                                    <textarea 
+                                        value={worldData.entrancePrompt || ''}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, entrancePrompt: e.target.value }))}
+                                        rows={2}
+                                        className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-1.5 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+                                        placeholder="What should users write to confirm they've read the rules?"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-900/50 border border-violet-500/30 rounded-lg p-6 space-y-4">
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider text-cyan-400">World Aesthetic Details</h3>
+                            <p className="text-xs text-gray-400">Fine-tune high-level lore concepts, colors, and classifications.</p>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">High Concept Synopsis</label>
+                                    <textarea 
+                                        value={worldData.highConcept || ''}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, highConcept: e.target.value }))}
+                                        rows={2}
+                                        className="w-full bg-gray-800/60 border border-violet-500/30 rounded-md py-1.5 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+                                        placeholder="What is the overarching theme or metaphysical logic of this world?"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">OC Sandbox Requirement</label>
+                                    <select
+                                        value={worldData.defaultOcMode || 'optional'}
+                                        onChange={(e) => setWorldData(prev => ({ ...prev, defaultOcMode: e.target.value as any }))}
+                                        className="w-full bg-gray-800 border border-violet-500/30 py-1.5 px-3 rounded-md text-xs text-white bg-neutral-900"
+                                    >
+                                        <option value="optional">OOC / Spectating is Optional (Observer allowed)</option>
+                                        <option value="required">OC Required (Avatar must be selected to join sandbox)</option>
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-300 mb-1">Color Paradigm Accent (Hex or Color Name)</label>
+                                        <input 
+                                            type="text"
+                                            value={worldData.colorTheme || ''}
+                                            onChange={(e) => setWorldData(prev => ({ ...prev, colorTheme: e.target.value }))}
+                                            className="w-full bg-gray-800 border border-violet-500/30 py-1.5 px-3 rounded-md text-xs text-white"
+                                            placeholder="#0ea5e9"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-300 mb-1">Background Pattern Prefix</label>
+                                        <input 
+                                            type="text"
+                                            value={worldData.backgroundPattern || ''}
+                                            onChange={(e) => setWorldData(prev => ({ ...prev, backgroundPattern: e.target.value }))}
+                                            className="w-full bg-gray-800 border border-violet-500/30 py-1.5 px-3 rounded-md text-xs text-white"
+                                            placeholder="constellation"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-900/50 border border-violet-500/30 rounded-lg p-6 space-y-4">
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider text-cyan-400">Genre Tags & Key Elements</h3>
+                            <p className="text-xs text-gray-400">Add or completely delete identifiers on your World page structure.</p>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">Genre Tags ({ (worldData.genreTags || []).length })</label>
+                                    <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-neutral-950/60 border border-neutral-800 rounded-lg">
+                                        { (worldData.genreTags || []).length === 0 && <span className="text-neutral-500 text-[11px] italic">No active tags. Hidden in headers!</span> }
+                                        { (worldData.genreTags || []).map(tag => (
+                                            <span key={tag} className="bg-cyan-550/10 border border-cyan-500/30 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                <span>{tag}</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setWorldData(prev => ({ ...prev, genreTags: (prev.genreTags || []).filter(t => t !== tag) }))}
+                                                    className="text-red-400 hover:text-red-300 hover:scale-110 cursor-pointer"
+                                                >
+                                                    <XMarkIcon />
+                                                </button>
+                                            </span>
+                                        )) }
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                        <input 
+                                            value={newTag}
+                                            onChange={e => setNewTag(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const v = newTag.trim();
+                                                    if (v && !(worldData.genreTags || []).includes(v)) {
+                                                        setWorldData(prev => ({ ...prev, genreTags: [...(prev.genreTags || []), v] }));
+                                                    }
+                                                    setNewTag('');
+                                                }
+                                            }}
+                                            placeholder="Write tag name and click add..."
+                                            className="flex-grow bg-gray-800/60 border border-violet-500/30 rounded-md py-1 px-2.5 text-xs text-white focus:outline-none"
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const v = newTag.trim();
+                                                if (v && !(worldData.genreTags || []).includes(v)) {
+                                                    setWorldData(prev => ({ ...prev, genreTags: [...(prev.genreTags || []), v] }));
+                                                }
+                                                setNewTag('');
+                                            }}
+                                            className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-[11px] font-bold text-white rounded-md cursor-pointer"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-neutral-800/80 my-3"></div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 mb-1">Key Archetype elements ({ (worldData.keyElements || []).length })</label>
+                                    <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-neutral-950/60 border border-neutral-800 rounded-lg">
+                                        { (worldData.keyElements || []).length === 0 && <span className="text-neutral-500 text-[11px] italic">No active design elements.</span> }
+                                        { (worldData.keyElements || []).map(element => (
+                                            <span key={element} className="bg-amber-550/10 border border-amber-500/30 text-amber-400 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                <span>{element}</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setWorldData(prev => ({ ...prev, keyElements: (prev.keyElements || []).filter(el => el !== element) }))}
+                                                    className="text-red-400 hover:text-red-300 hover:scale-110 cursor-pointer"
+                                                >
+                                                    <XMarkIcon />
+                                                </button>
+                                            </span>
+                                        )) }
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                        <input 
+                                            value={newKeyElement}
+                                            onChange={e => setNewKeyElement(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const v = newKeyElement.trim();
+                                                    if (v && !(worldData.keyElements || []).includes(v)) {
+                                                        setWorldData(prev => ({ ...prev, keyElements: [...(prev.keyElements || []), v] }));
+                                                    }
+                                                    setNewKeyElement('');
+                                                }
+                                            }}
+                                            placeholder="Write archetype element name..."
+                                            className="flex-grow bg-gray-800/60 border border-violet-500/30 rounded-md py-1 px-2.5 text-xs text-white focus:outline-none"
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const v = newKeyElement.trim();
+                                                if (v && !(worldData.keyElements || []).includes(v)) {
+                                                    setWorldData(prev => ({ ...prev, keyElements: [...(prev.keyElements || []), v] }));
+                                                }
+                                                setNewKeyElement('');
+                                            }}
+                                            className="px-3 py-1 bg-amber-600 hover:bg-amber-550 text-[11px] font-bold text-white rounded-md cursor-pointer"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

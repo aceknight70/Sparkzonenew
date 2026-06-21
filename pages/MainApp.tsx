@@ -1030,6 +1030,8 @@ const MainApp: React.FC = () => {
         } else {
             const worldId = overlay?.type === 'world-create' ? String(Date.now()) : String(worldData.id);
             const dbWorld = {
+                type: 'World',
+                status: 'Published',
                 ...worldData,
                 id: worldId,
                 authorId: currentUser.id.toString(),

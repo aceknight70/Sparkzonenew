@@ -151,6 +151,8 @@ const WorldCreationPage: React.FC<WorldCreationPageProps> = ({ onExit, onCreate 
         ];
 
         onCreate({
+            type: 'World',
+            status: 'Published',
             name,
             tagline,
             synopsis,

@@ -54,6 +54,9 @@ const LibraryPage: React.FC<LibraryPageProps> = ({
         templates: false
     });
 
+    // Search and filter input state
+    const [searchTerm, setSearchTerm] = useState('');
+
     // Alert / Interactive removal state
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -69,52 +72,77 @@ const LibraryPage: React.FC<LibraryPageProps> = ({
         setTimeout(() => setToastMessage(null), 3000);
     };
 
-    // Filter data for Library
+    // Filter data for Library with SearchTerm
     const joinedWorlds = useMemo(() => {
-        return worlds.filter(w => 
-            w.authorId === currentUser.id || 
-            (w.members && w.members.some(m => m.id === currentUser.id))
-        );
-    }, [worlds, currentUser.id]);
+        return worlds.filter(w => {
+            const matchesAccess = w.authorId === currentUser.id || 
+                (w.members && w.members.some(m => m.id === currentUser.id));
+            const matchesSearch = !searchTerm || 
+                w.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                (w.tagline || '').toLowerCase().includes(searchTerm.toLowerCase());
+            return matchesAccess && matchesSearch;
+        });
+    }, [worlds, currentUser.id, searchTerm]);
 
     const myStories = useMemo(() => {
         // Created or followed stories
-        return stories.filter(s => s.authorId === currentUser.id || s.id === 15);
-    }, [stories, currentUser.id]);
+        return stories.filter(s => {
+            const matchesAccess = s.authorId === currentUser.id || s.id === 15;
+            const matchesSearch = !searchTerm || 
+                s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (s.logline || '').toLowerCase().includes(searchTerm.toLowerCase());
+            return matchesAccess && matchesSearch;
+        });
+    }, [stories, currentUser.id, searchTerm]);
 
     const joinedCommunities = useMemo(() => {
-        return communities.filter(c => 
-            c.leaderId === currentUser.id || 
-            (currentUser.communityIds && currentUser.communityIds.includes(c.id)) ||
-            (c.members && c.members.some(m => m.userId === currentUser.id))
-        );
-    }, [communities, currentUser.id, currentUser.communityIds]);
+        return communities.filter(c => {
+            const matchesAccess = c.leaderId === currentUser.id || 
+                (currentUser.communityIds && currentUser.communityIds.includes(c.id)) ||
+                (c.members && c.members.some(m => m.userId === currentUser.id));
+            const matchesSearch = !searchTerm || 
+                c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                (c.tag || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (c.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+            return matchesAccess && matchesSearch;
+        });
+    }, [communities, currentUser.id, currentUser.communityIds, searchTerm]);
 
     // Mock history of rooms (last 10 entered)
     const roomHistory = useMemo(() => {
-        return [
+        const rawHistory = [
             { id: 101, name: "Sunset Tavern RP", host: "AceKnight", date: "Just now", format: "Casual Chat" },
             { id: 102, name: "Cyberspace Infiltration", host: "CodeBreaker", date: "2 hours ago", format: "VTT Tabletop" },
             { id: 103, name: "Dungeon Crawlers Level 4", host: "DMMaster", date: "Yesterday", format: "D&D Mode" },
             { id: 104, name: "Theatre Academy Live", host: "Starlet", date: "June 16, 2026", format: "Theatre Mode" },
             { id: 105, name: "Eldoria Royal Ball", host: "LordGregory", date: "June 15, 2026", format: "Social Roleplay" }
         ];
-    }, []);
+        return rawHistory.filter(room => !searchTerm || 
+            room.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            room.host.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [searchTerm]);
 
     // Mock Saved Memes Library
     const savedMemes = useMemo(() => {
-        return [
+        const rawMemes = [
             { id: 1, title: "When DM smiles", imageUrl: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=300&auto=format&fit=crop" },
             { id: 2, title: "Natural 1 on stealth", imageUrl: "https://images.unsplash.com/photo-1513829096999-4978602297af?q=80&w=300&auto=format&fit=crop" },
             { id: 3, title: "Me explaining lore", imageUrl: "https://images.unsplash.com/photo-1541562232579-512a21360020?q=80&w=300&auto=format&fit=crop" }
         ];
-    }, []);
+        return rawMemes.filter(meme => !searchTerm || 
+            meme.title.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [searchTerm]);
 
     // Owned Spark Clash Action templates
     const ownedTemplates = useMemo(() => {
-        // Return a subset of templates representing owned cards/templates
-        return cardTemplates.slice(0, 6);
-    }, []);
+        const rawTemplates = cardTemplates.slice(0, 6);
+        return rawTemplates.filter(t => !searchTerm || 
+            t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            (t.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [searchTerm]);
 
     // Leaves / removes a world from the user's view
     const handleLeaveWorld = (e: React.MouseEvent, worldId: number, worldName: string) => {
@@ -172,6 +200,28 @@ const LibraryPage: React.FC<LibraryPageProps> = ({
                 >
                     + Create Meme
                 </button>
+            </div>
+
+            {/* Search Input for Library */}
+            <div className="relative mb-8">
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search library worlds, stories, communities, cards, memes..."
+                    className="w-full bg-gray-900/80 border border-violet-500/30 rounded-full py-3.5 pl-12 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all shadow-lg"
+                />
+                <div className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" /></svg>
+                </div>
+                {searchTerm && (
+                    <button 
+                        onClick={() => setSearchTerm('')} 
+                        className="absolute inset-y-0 right-4 text-xs font-bold text-cyan-400 hover:text-cyan-300"
+                    >
+                        Clear
+                    </button>
+                )}
             </div>
 
             {toastMessage && (

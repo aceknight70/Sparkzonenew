@@ -186,6 +186,7 @@ const MainApp: React.FC = () => {
     const [parties, setParties] = useState<Party[]>(initialParties);
     const [characters, setCharacters] = useState<Character[]>(initialCharacters);
     const [communities, setCommunities] = useState<Community[]>(initialCommunities);
+    const [memes, setMemes] = useState<any[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
 
     // Global Music State
@@ -228,6 +229,12 @@ const MainApp: React.FC = () => {
             });
             if (usersList.length > 0) {
                 setUsers(usersList);
+                if (firebaseUser) {
+                    const updatedMe = usersList.find(u => String(u.id) === String(firebaseUser.uid));
+                    if (updatedMe) {
+                        setCurrentUser(updatedMe);
+                    }
+                }
             }
         }, (err) => {
             handleFirestoreError(err, OperationType.GET, 'users');
@@ -316,7 +323,7 @@ const MainApp: React.FC = () => {
         return () => unsubscribe();
     }, [isOffline, firebaseUser]);
 
-    // Sync creations (Worlds, Characters, Stories, Parties, Communities)
+    // Sync creations (Worlds, Characters, Stories, Parties, Communities, Memes)
     useEffect(() => {
         if (isOffline) return;
         if (!firebaseUser) return;
@@ -325,7 +332,8 @@ const MainApp: React.FC = () => {
             { name: 'characters', setter: setCharacters, initial: initialCharacters },
             { name: 'stories', setter: setStories, initial: initialStories },
             { name: 'parties', setter: setParties, initial: initialParties },
-            { name: 'communities', setter: setCommunities, initial: initialCommunities }
+            { name: 'communities', setter: setCommunities, initial: initialCommunities },
+            { name: 'memes', setter: setMemes, initial: [] }
         ];
 
         const unsubscribes = collectionsToSync.map(coll => {
@@ -362,18 +370,42 @@ const MainApp: React.FC = () => {
         };
     }, [isOffline, firebaseUser]);
 
-    // Sync creations list (Worlds + Characters + Stories + Parties merge)
+    // Sync creations list (Worlds + Characters + Stories + Parties/RP Cards + Communities + Memes merge)
     useEffect(() => {
         const mergedCreations: UserCreation[] = [];
-        worlds.forEach(w => mergedCreations.push({ ...w, type: 'World', status: 'Published' }));
-        characters.forEach(c => mergedCreations.push({ ...c, type: 'Character', status: 'Published' }));
-        stories.forEach(s => mergedCreations.push({ ...s, type: 'Story', status: 'Published' }));
-        parties.forEach(p => mergedCreations.push({ ...p, type: 'Party', status: 'Published' }));
+        worlds.forEach(w => mergedCreations.push({ ...w, type: 'World' as const, status: 'Published' as const }));
+        characters.forEach(c => mergedCreations.push({ ...c, type: 'Character' as const, status: 'Published' as const }));
+        stories.forEach(s => mergedCreations.push({ ...s, type: 'Story' as const, status: 'Published' as const }));
+        parties.forEach(p => mergedCreations.push({ 
+            id: p.id,
+            type: 'RP Card' as const,
+            name: p.name,
+            imageUrl: p.imageUrl,
+            status: 'Active' as const,
+            authorId: p.authorId,
+            contentMetadata: p.contentMetadata
+        }));
+        communities.forEach(c => mergedCreations.push({
+            id: c.id,
+            type: 'Community' as const,
+            name: c.name,
+            imageUrl: c.imageUrl,
+            status: 'Active' as const,
+            authorId: c.leaderId
+        }));
+        memes.forEach(m => mergedCreations.push({
+            id: m.id,
+            type: 'Meme' as const,
+            name: m.name,
+            imageUrl: m.imageUrl,
+            status: 'Published' as const,
+            authorId: m.authorId
+        }));
         
         if (mergedCreations.length > 0) {
             setUserCreations(mergedCreations);
         }
-    }, [worlds, characters, stories, parties]);
+    }, [worlds, characters, stories, parties, communities, memes]);
 
     // Sync conversations (DM list) for the authenticated user
     useEffect(() => {
@@ -963,8 +995,15 @@ const MainApp: React.FC = () => {
         setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
     };
 
-    const handleUpdateProfile = (updates: Partial<User>) => {
+    const handleUpdateProfile = async (updates: Partial<User>) => {
         setCurrentUser(prev => ({ ...prev, ...updates }));
+        if (!isOffline && firebaseUser) {
+            try {
+                await setDoc(doc(db, 'users', currentUser.id.toString()), updates, { merge: true });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.id}`);
+            }
+        }
     };
 
     const handleOverlay = (newState: OverlayState | null) => {
@@ -1109,16 +1148,33 @@ const MainApp: React.FC = () => {
         }
     };
 
-    const handleSaveMeme = (memeData: { name: string, imageUrl: string }) => {
+    const handleSaveMeme = async (memeData: { name: string, imageUrl: string }) => {
+        const memeId = Date.now();
         const newMeme: UserCreation = {
-            id: Date.now(),
+            id: memeId,
             type: 'Meme',
             name: memeData.name,
             imageUrl: memeData.imageUrl,
             status: 'Published',
             authorId: currentUser.id
         };
-        setUserCreations([...userCreations, newMeme]);
+        if (isOffline) {
+            setUserCreations([...userCreations, newMeme]);
+        } else {
+            try {
+                await setDoc(doc(db, 'memes', String(memeId)), {
+                    id: String(memeId),
+                    type: 'Meme',
+                    name: memeData.name,
+                    imageUrl: memeData.imageUrl,
+                    status: 'Published',
+                    authorId: currentUser.id.toString(),
+                    createdAt: new Date().toISOString()
+                });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.WRITE, `memes/${memeId}`);
+            }
+        }
         handleOverlay(null);
     };
 

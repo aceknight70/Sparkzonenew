@@ -321,11 +321,11 @@ const MainApp: React.FC = () => {
         if (isOffline) return;
         if (!firebaseUser) return;
         const collectionsToSync = [
-            { name: 'worlds', setter: setWorlds },
-            { name: 'characters', setter: setCharacters },
-            { name: 'stories', setter: setStories },
-            { name: 'parties', setter: setParties },
-            { name: 'communities', setter: setCommunities }
+            { name: 'worlds', setter: setWorlds, initial: initialWorlds },
+            { name: 'characters', setter: setCharacters, initial: initialCharacters },
+            { name: 'stories', setter: setStories, initial: initialStories },
+            { name: 'parties', setter: setParties, initial: initialParties },
+            { name: 'communities', setter: setCommunities, initial: initialCommunities }
         ];
 
         const unsubscribes = collectionsToSync.map(coll => {
@@ -333,11 +333,25 @@ const MainApp: React.FC = () => {
             return onSnapshot(q, (snapshot) => {
                 const list: any[] = [];
                 snapshot.forEach(docSnap => {
-                    list.push(docSnap.data());
+                    const data = docSnap.data();
+                    const parsedId = isNaN(Number(docSnap.id)) ? docSnap.id : Number(docSnap.id);
+                    list.push({
+                        ...data,
+                        id: parsedId,
+                        authorId: isNaN(Number(data.authorId)) ? data.authorId : Number(data.authorId)
+                    });
                 });
-                if (list.length > 0) {
-                    coll.setter(list);
-                }
+
+                // Merge initial reference mock data with Firestore data to keep it rich and instantly ready for use
+                const mergedMap = new Map();
+                coll.initial.forEach((item: any) => {
+                    mergedMap.set(String(item.id), item);
+                });
+                list.forEach((item: any) => {
+                    mergedMap.set(String(item.id), item);
+                });
+
+                coll.setter(Array.from(mergedMap.values()));
             }, (err) => {
                 handleFirestoreError(err, OperationType.GET, coll.name);
             });
@@ -767,102 +781,182 @@ const MainApp: React.FC = () => {
         }
     };
 
-    const handleSendGroupMessage = (worldId: number, locationId: number, text: string, character?: UserCreation, imageUrl?: string, audioUrl?: string) => {
-        setWorlds(prev => prev.map(w => {
-            if (w.id === worldId) {
-                const newLocations = w.locations.map(cat => ({
-                    ...cat,
-                    channels: cat.channels.map(chan => {
-                        if (chan.id === locationId) {
-                            return {
-                                ...chan,
-                                messages: [...chan.messages, {
-                                    id: Date.now(),
-                                    text,
-                                    timestamp: 'Just now',
-                                    sender: { ...currentUser, role: 'Member' },
-                                    character,
-                                    imageUrl,
-                                    audioUrl
-                                }]
-                            };
-                        }
-                        return chan;
-                    })
-                }));
-                return { ...w, locations: newLocations };
-            }
-            return w;
-        }));
-    };
+    const handleSendGroupMessage = async (worldId: number | string, locationId: number | string, text: string, character?: UserCreation, imageUrl?: string, audioUrl?: string) => {
+        const newMessage = {
+            id: Date.now(),
+            text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sender: { ...currentUser, role: 'Member' as any },
+            character,
+            imageUrl: imageUrl || '',
+            audioUrl: audioUrl || ''
+        };
 
-    const handleDeleteGroupMessage = (worldId: number, locationId: number, messageId: number) => {
-        setWorlds(prev => prev.map(w => {
-            if (w.id === worldId) {
-                const newLocations = w.locations.map(cat => ({
-                    ...cat,
-                    channels: cat.channels.map(chan => {
-                        if (chan.id === locationId) {
-                            return {
-                                ...chan,
-                                messages: chan.messages.filter(m => m.id !== messageId)
-                            };
-                        }
-                        return chan;
-                    })
-                }));
-                return { ...w, locations: newLocations };
-            }
-            return w;
-        }));
-    };
-
-    const handleSendPartyMessage = (partyId: number, text: string, character?: UserCreation, imageUrl?: string, audioUrl?: string) => {
-        setParties(prev => prev.map(p => {
-            if (p.id === partyId) {
-                let roll = undefined;
-                // Match patterns like: /roll 1d20, /roll d20, /roll 2d6+4, /roll d100-5, /roll 1d10 - 2
-                const rollMatch = text.trim().match(/^\/roll\s+(\d*)d(\d+)(?:\s*([+-])\s*(\d+))?/i);
-                if (rollMatch) {
-                    const count = parseInt(rollMatch[1]) || 1;
-                    const sides = parseInt(rollMatch[2]);
-                    const sign = rollMatch[3] || '+';
-                    const modValue = rollMatch[4] ? parseInt(rollMatch[4]) : 0;
-                    const modifier = sign === '-' ? -modValue : modValue;
-                    
-                    const rolls = Array.from({length: count}, () => Math.floor(Math.random() * sides) + 1);
-                    const total = rolls.reduce((a, b) => a + b, 0) + modifier;
-                    roll = { command: text.trim(), rolls, modifier, total };
+        if (isOffline) {
+            setWorlds(prev => prev.map(w => {
+                if (String(w.id) === String(worldId)) {
+                    const newLocations = w.locations.map(cat => ({
+                        ...cat,
+                        channels: cat.channels.map(chan => {
+                            if (String(chan.id) === String(locationId)) {
+                                return {
+                                    ...chan,
+                                    messages: [...chan.messages, newMessage]
+                                };
+                            }
+                            return chan;
+                        })
+                    }));
+                    return { ...w, locations: newLocations };
                 }
-
-                return {
-                    ...p,
-                    chat: [...p.chat, {
-                        id: Date.now(),
-                        text,
-                        timestamp: 'Just now',
-                        sender: { ...currentUser, isHost: p.hostId === currentUser.id },
-                        character,
-                        roll,
-                        imageUrl,
-                        audioUrl
-                    }]
-                };
+                return w;
+            }));
+        } else {
+            const targetWorld = worlds.find(w => String(w.id) === String(worldId));
+            if (!targetWorld) return;
+            const newLocations = targetWorld.locations.map(cat => ({
+                ...cat,
+                channels: cat.channels.map(chan => {
+                    if (String(chan.id) === String(locationId)) {
+                        return {
+                            ...chan,
+                            messages: [...chan.messages, newMessage]
+                        };
+                    }
+                    return chan;
+                })
+            }));
+            const updatedWorld = { ...targetWorld, locations: newLocations };
+            try {
+                await setDoc(doc(db, 'worlds', String(worldId)), updatedWorld);
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `worlds/${worldId}`);
             }
-            return p;
-        }));
+        }
     };
 
-    const handleDeletePartyMessage = (partyId: number, messageId: number) => {
-        setParties(prev => prev.map(p => {
-            if (p.id === partyId) {
-                return {
-                    ...p,
-                    chat: p.chat.filter(m => m.id !== messageId)
-                };
+    const handleDeleteGroupMessage = async (worldId: number | string, locationId: number | string, messageId: number | string) => {
+        if (isOffline) {
+            setWorlds(prev => prev.map(w => {
+                if (String(w.id) === String(worldId)) {
+                    const newLocations = w.locations.map(cat => ({
+                        ...cat,
+                        channels: cat.channels.map(chan => {
+                            if (String(chan.id) === String(locationId)) {
+                                return {
+                                    ...chan,
+                                    messages: chan.messages.filter(m => String(m.id) !== String(messageId))
+                                };
+                            }
+                            return chan;
+                        })
+                    }));
+                    return { ...w, locations: newLocations };
+                }
+                return w;
+            }));
+        } else {
+            const targetWorld = worlds.find(w => String(w.id) === String(worldId));
+            if (!targetWorld) return;
+            const newLocations = targetWorld.locations.map(cat => ({
+                ...cat,
+                channels: cat.channels.map(chan => {
+                    if (String(chan.id) === String(locationId)) {
+                        return {
+                            ...chan,
+                            messages: chan.messages.filter(m => String(m.id) !== String(messageId))
+                        };
+                    }
+                    return chan;
+                })
+            }));
+            const updatedWorld = { ...targetWorld, locations: newLocations };
+            try {
+                await setDoc(doc(db, 'worlds', String(worldId)), updatedWorld);
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `worlds/${worldId}`);
             }
-            return p;
-        }));
+        }
+    };
+
+    const handleSendPartyMessage = async (partyId: number | string, text: string, character?: UserCreation, imageUrl?: string, audioUrl?: string) => {
+        let roll = undefined;
+        // Match patterns like: /roll 1d20, /roll d20, /roll 2d6+4, /roll d100-5, /roll 1d10 - 2
+        const rollMatch = text.trim().match(/^\/roll\s+(\d*)d(\d+)(?:\s*([+-])\s*(\d+))?/i);
+        if (rollMatch) {
+            const count = parseInt(rollMatch[1]) || 1;
+            const sides = parseInt(rollMatch[2]);
+            const sign = rollMatch[3] || '+';
+            const modValue = rollMatch[4] ? parseInt(rollMatch[4]) : 0;
+            const modifier = sign === '-' ? -modValue : modValue;
+            
+            const rolls = Array.from({length: count}, () => Math.floor(Math.random() * sides) + 1);
+            const total = rolls.reduce((a, b) => a + b, 0) + modifier;
+            roll = { command: text.trim(), rolls, modifier, total };
+        }
+
+        const newMessageItem = {
+            id: Date.now(),
+            text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sender: { ...currentUser, isHost: false },
+            character,
+            roll,
+            imageUrl: imageUrl || '',
+            audioUrl: audioUrl || ''
+        };
+
+        if (isOffline) {
+            setParties(prev => prev.map(p => {
+                if (String(p.id) === String(partyId)) {
+                    newMessageItem.sender.isHost = String(p.hostId) === String(currentUser.id);
+                    return {
+                        ...p,
+                        chat: [...p.chat, newMessageItem]
+                    };
+                }
+                return p;
+            }));
+        } else {
+            const targetParty = parties.find(p => String(p.id) === String(partyId));
+            if (!targetParty) return;
+            newMessageItem.sender.isHost = String(targetParty.hostId) === String(currentUser.id);
+            const updatedParty = {
+                ...targetParty,
+                chat: [...targetParty.chat, newMessageItem]
+            };
+            try {
+                await setDoc(doc(db, 'parties', String(partyId)), updatedParty);
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `parties/${partyId}`);
+            }
+        }
+    };
+
+    const handleDeletePartyMessage = async (partyId: number | string, messageId: number | string) => {
+        if (isOffline) {
+            setParties(prev => prev.map(p => {
+                if (String(p.id) === String(partyId)) {
+                    return {
+                        ...p,
+                        chat: p.chat.filter(m => String(m.id) !== String(messageId))
+                    };
+                }
+                return p;
+            }));
+        } else {
+            const targetParty = parties.find(p => String(p.id) === String(partyId));
+            if (!targetParty) return;
+            const updatedParty = {
+                ...targetParty,
+                chat: targetParty.chat.filter(m => String(m.id) !== String(messageId))
+            };
+            try {
+                await setDoc(doc(db, 'parties', String(partyId)), updatedParty);
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `parties/${partyId}`);
+            }
+        }
     };
 
     const handleMarkNotificationRead = (id: number) => {
@@ -879,60 +973,140 @@ const MainApp: React.FC = () => {
 
     // --- Creation Handlers ---
 
-    const handleSaveWorld = (worldData: World) => {
-        if (overlay?.type === 'world-create') {
-            const newWorld = { ...worldData, id: Date.now(), authorId: currentUser.id };
-            setWorlds([...worlds, newWorld]);
-            setUserCreations([...userCreations, newWorld]);
-            handleOverlay({ type: 'world', id: newWorld.id });
-        } else if (overlay?.type === 'world-edit') {
-            setWorlds(worlds.map(w => w.id === worldData.id ? worldData : w));
-            setUserCreations(userCreations.map(c => c.id === worldData.id ? worldData : c));
-            handleOverlay({ type: 'world', id: worldData.id });
+    const handleSaveWorld = async (worldData: World) => {
+        if (isOffline) {
+            if (overlay?.type === 'world-create') {
+                const newWorld = { ...worldData, id: Date.now(), authorId: currentUser.id };
+                setWorlds([...worlds, newWorld]);
+                setUserCreations([...userCreations, newWorld]);
+                handleOverlay({ type: 'world', id: newWorld.id });
+            } else if (overlay?.type === 'world-edit') {
+                setWorlds(worlds.map(w => w.id === worldData.id ? worldData : w));
+                setUserCreations(userCreations.map(c => c.id === worldData.id ? worldData : c));
+                handleOverlay({ type: 'world', id: worldData.id });
+            }
+        } else {
+            const worldId = overlay?.type === 'world-create' ? String(Date.now()) : String(worldData.id);
+            const dbWorld = {
+                ...worldData,
+                id: worldId,
+                authorId: currentUser.id.toString(),
+                authorName: currentUser.name,
+                createdAt: worldData.createdAt || new Date().toISOString()
+            };
+            try {
+                await setDoc(doc(db, 'worlds', worldId), dbWorld);
+                handleOverlay({ type: 'world', id: worldId as any });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.WRITE, `worlds/${worldId}`);
+            }
         }
     };
 
-    const handleSaveCharacter = (charData: Character) => {
-        if (overlay?.type === 'character-create') {
-            const newChar = { ...charData, id: Date.now(), authorId: currentUser.id };
-            setCharacters([...characters, newChar]);
-            setUserCreations([...userCreations, newChar]);
-            handleOverlay({ type: 'character-view', id: newChar.id });
-        } else if (overlay?.type === 'character-edit') {
-            setCharacters(characters.map(c => c.id === charData.id ? charData : c));
-            setUserCreations(userCreations.map(c => c.id === charData.id ? charData : c));
-            handleOverlay({ type: 'character-view', id: charData.id });
+    const handleSaveCharacter = async (charData: Character) => {
+        if (isOffline) {
+            if (overlay?.type === 'character-create') {
+                const newChar = { ...charData, id: Date.now(), authorId: currentUser.id };
+                setCharacters([...characters, newChar]);
+                setUserCreations([...userCreations, newChar]);
+                handleOverlay({ type: 'character-view', id: newChar.id });
+            } else if (overlay?.type === 'character-edit') {
+                setCharacters(characters.map(c => c.id === charData.id ? charData : c));
+                setUserCreations(userCreations.map(c => c.id === charData.id ? charData : c));
+                handleOverlay({ type: 'character-view', id: charData.id });
+            }
+        } else {
+            const charId = overlay?.type === 'character-create' ? String(Date.now()) : String(charData.id);
+            const dbChar = {
+                ...charData,
+                id: charId,
+                authorId: currentUser.id.toString(),
+                authorName: currentUser.name,
+                createdAt: charData.createdAt || new Date().toISOString()
+            };
+            try {
+                await setDoc(doc(db, 'characters', charId), dbChar);
+                handleOverlay({ type: 'character-view', id: charId as any });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.WRITE, `characters/${charId}`);
+            }
         }
     };
 
-    const handleSaveStory = (storyData: Story) => {
-        if (overlay?.type === 'story-create') {
-            const newStory = { ...storyData, id: Date.now(), authorId: currentUser.id, chapters: [] };
-            setStories([...stories, newStory]);
-            setUserCreations([...userCreations, newStory]);
-            handleOverlay({ type: 'story-edit', id: newStory.id });
-        } else if (overlay?.type === 'story-edit') {
-            setStories(stories.map(s => s.id === storyData.id ? storyData : s));
-            setUserCreations(userCreations.map(c => c.id === storyData.id ? storyData : c));
+    const handleSaveStory = async (storyData: Story) => {
+        if (isOffline) {
+            if (overlay?.type === 'story-create') {
+                const newStory = { ...storyData, id: Date.now(), authorId: currentUser.id, chapters: [] };
+                setStories([...stories, newStory]);
+                setUserCreations([...userCreations, newStory]);
+                handleOverlay({ type: 'story-edit', id: newStory.id });
+            } else if (overlay?.type === 'story-edit') {
+                setStories(stories.map(s => s.id === storyData.id ? storyData : s));
+                setUserCreations(userCreations.map(c => c.id === storyData.id ? storyData : c));
+            }
+        } else {
+            const storyId = overlay?.type === 'story-create' ? String(Date.now()) : String(storyData.id);
+            const dbStory = {
+                ...storyData,
+                id: storyId,
+                authorId: currentUser.id.toString(),
+                authorName: currentUser.name,
+                createdAt: storyData.createdAt || new Date().toISOString(),
+                chapters: storyData.chapters || []
+            };
+            try {
+                await setDoc(doc(db, 'stories', storyId), dbStory);
+                if (overlay?.type === 'story-create') {
+                    handleOverlay({ type: 'story-edit', id: storyId as any });
+                }
+            } catch (err) {
+                handleFirestoreError(err, OperationType.WRITE, `stories/${storyId}`);
+            }
         }
     };
 
-    const handleSaveParty = (partyData: Party) => {
-        if (overlay?.type === 'party-create') {
-            const newParty = { ...partyData, id: Date.now(), authorId: currentUser.id, hostId: currentUser.id };
-            setParties([...parties, newParty]);
-            setUserCreations([...userCreations, newParty]);
-            handleOverlay({ type: 'party-view', id: newParty.id });
-        } else if (overlay?.type === 'party-edit') {
-            setParties(parties.map(p => p.id === partyData.id ? partyData : p));
-            setUserCreations(userCreations.map(c => c.id === partyData.id ? partyData : c));
-            handleOverlay({ type: 'party-view', id: partyData.id });
+    const handleSaveParty = async (partyData: Party) => {
+        if (isOffline) {
+            if (overlay?.type === 'party-create') {
+                const newParty = { ...partyData, id: Date.now(), authorId: currentUser.id, hostId: currentUser.id };
+                setParties([...parties, newParty]);
+                setUserCreations([...userCreations, newParty]);
+                handleOverlay({ type: 'party-view', id: newParty.id });
+            } else if (overlay?.type === 'party-edit') {
+                setParties(parties.map(p => p.id === partyData.id ? partyData : p));
+                setUserCreations(userCreations.map(c => c.id === partyData.id ? partyData : c));
+                handleOverlay({ type: 'party-view', id: partyData.id });
+            }
+        } else {
+            const partyId = overlay?.type === 'party-create' ? String(Date.now()) : String(partyData.id);
+            const dbParty = {
+                ...partyData,
+                id: partyId,
+                authorId: currentUser.id.toString(),
+                authorName: currentUser.name,
+                hostId: partyData.hostId || currentUser.id.toString(),
+                createdAt: partyData.createdAt || new Date().toISOString()
+            };
+            try {
+                await setDoc(doc(db, 'parties', partyId), dbParty);
+                handleOverlay({ type: 'party-view', id: partyId as any });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.WRITE, `parties/${partyId}`);
+            }
         }
     };
 
-    const handleUpdateParty = (updatedParty: Party) => {
-        setParties(prev => prev.map(p => p.id === updatedParty.id ? updatedParty : p));
-        setUserCreations(prev => prev.map(c => c.id === updatedParty.id ? updatedParty : c));
+    const handleUpdateParty = async (updatedParty: Party) => {
+        if (isOffline) {
+            setParties(prev => prev.map(p => p.id === updatedParty.id ? updatedParty : p));
+            setUserCreations(prev => prev.map(c => c.id === updatedParty.id ? updatedParty : c));
+        } else {
+            try {
+                await setDoc(doc(db, 'parties', String(updatedParty.id)), updatedParty);
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `parties/${updatedParty.id}`);
+            }
+        }
     };
 
     const handleSaveMeme = (memeData: { name: string, imageUrl: string }) => {
@@ -948,79 +1122,159 @@ const MainApp: React.FC = () => {
         handleOverlay(null);
     };
 
-    const handleSaveCommunity = (communityData: Community) => {
+    const handleSaveCommunity = async (communityData: Community) => {
+        const commId = overlay?.type === 'community-create' ? Date.now() : communityData.id;
+        const commIdStr = String(commId);
+
+        let resolvedCommunity: Community;
         if (overlay?.type === 'community-create') {
-            const newCommunity = { 
+            resolvedCommunity = { 
                 ...communityData, 
-                id: Date.now(), 
-                authorId: currentUser.id, 
-                leaderId: currentUser.id,
-                members: [{ userId: currentUser.id, role: 'Leader', joinedAt: new Date().toISOString().split('T')[0] }],
+                id: commId, 
+                authorId: currentUser.id as any, 
+                leaderId: currentUser.id as any,
+                members: [{ userId: currentUser.id, role: 'Leader' as any, joinedAt: new Date().toISOString().split('T')[0] }],
                 level: 1, 
                 xp: 0, 
                 showcase: [], 
                 feed: [] 
             } as Community;
-            
-            setCommunities([...communities, newCommunity]);
-            setUserCreations([...userCreations, newCommunity]);
-            
-            setCurrentUser(prev => ({
-                ...prev,
-                communityIds: [...(prev.communityIds || []), newCommunity.id]
-            }));
-            
-            handleOverlay({ type: 'community', id: newCommunity.id });
-        } else if (overlay?.type === 'community-edit') {
-            setCommunities(communities.map(c => c.id === communityData.id ? communityData : c));
-            setUserCreations(userCreations.map(c => c.id === communityData.id ? communityData : c));
-            handleOverlay({ type: 'community', id: communityData.id });
+        } else {
+            resolvedCommunity = communityData;
+        }
+
+        if (isOffline) {
+            if (overlay?.type === 'community-create') {
+                setCommunities([...communities, resolvedCommunity]);
+                setUserCreations([...userCreations, resolvedCommunity]);
+                setCurrentUser(prev => ({
+                    ...prev,
+                    communityIds: [...(prev.communityIds || []), commId]
+                }));
+                handleOverlay({ type: 'community', id: commId });
+            } else if (overlay?.type === 'community-edit') {
+                setCommunities(communities.map(c => c.id === commId ? resolvedCommunity : c));
+                setUserCreations(userCreations.map(c => c.id === commId ? resolvedCommunity : c));
+                handleOverlay({ type: 'community', id: commId });
+            }
+        } else {
+            try {
+                await setDoc(doc(db, 'communities', commIdStr), resolvedCommunity);
+                if (overlay?.type === 'community-create') {
+                    const updatedCommunityIds = [...(currentUser.communityIds || []), commId];
+                    await updateDoc(doc(db, 'users', currentUser.id.toString()), {
+                        communityIds: updatedCommunityIds
+                    });
+                }
+                handleOverlay({ type: 'community', id: commId });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `communities/${commIdStr}`);
+            }
         }
     };
 
-    const handleJoinCommunity = (communityId: number) => {
-        setCommunities(prev => prev.map(c => {
-            if (c.id === communityId) {
-                return {
-                    ...c,
-                    members: [...c.members, { userId: currentUser.id, role: 'Member', joinedAt: new Date().toISOString().split('T')[0] }]
-                };
+    const handleJoinCommunity = async (communityId: number | string) => {
+        const commIdStr = String(communityId);
+        const newMember = { userId: currentUser.id, role: 'Member' as any, joinedAt: new Date().toISOString().split('T')[0] };
+
+        if (isOffline) {
+            setCommunities(prev => prev.map(c => {
+                if (String(c.id) === commIdStr) {
+                    return {
+                        ...c,
+                        members: [...c.members, newMember]
+                    };
+                }
+                return c;
+            }));
+            setCurrentUser(prev => ({
+                ...prev,
+                communityIds: [...(prev.communityIds || []), communityId as any]
+            }));
+        } else {
+            const targetCommunity = communities.find(c => String(c.id) === commIdStr);
+            if (!targetCommunity) return;
+            if (targetCommunity.members.some(m => String(m.userId) === String(currentUser.id))) return;
+            const updatedCommunity = {
+                ...targetCommunity,
+                members: [...targetCommunity.members, newMember]
+            };
+            try {
+                await setDoc(doc(db, 'communities', commIdStr), updatedCommunity);
+                const updatedCommunityIds = [...(currentUser.communityIds || []), Number(communityId) || communityId];
+                await updateDoc(doc(db, 'users', currentUser.id.toString()), {
+                    communityIds: updatedCommunityIds
+                });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `communities/${commIdStr}`);
             }
-            return c;
-        }));
-        setCurrentUser(prev => ({
-            ...prev,
-            communityIds: [...(prev.communityIds || []), communityId]
-        }));
+        }
     };
 
-    const handleLeaveCommunity = (communityId: number) => {
-        setCommunities(prev => prev.map(c => {
-            if (c.id === communityId) {
-                return {
-                    ...c,
-                    members: c.members.filter(m => m.userId !== currentUser.id)
-                };
+    const handleLeaveCommunity = async (communityId: number | string) => {
+        const commIdStr = String(communityId);
+
+        if (isOffline) {
+            setCommunities(prev => prev.map(c => {
+                if (String(c.id) === commIdStr) {
+                    return {
+                        ...c,
+                        members: c.members.filter(m => String(m.userId) !== String(currentUser.id))
+                    };
+                }
+                return c;
+            }));
+            setCurrentUser(prev => ({
+                ...prev,
+                communityIds: (prev.communityIds || []).filter(id => String(id) !== commIdStr)
+            }));
+        } else {
+            const targetCommunity = communities.find(c => String(c.id) === commIdStr);
+            if (!targetCommunity) return;
+            const updatedCommunity = {
+                ...targetCommunity,
+                members: targetCommunity.members.filter(m => String(m.userId) !== String(currentUser.id))
+            };
+            try {
+                await setDoc(doc(db, 'communities', commIdStr), updatedCommunity);
+                const updatedCommunityIds = (currentUser.communityIds || []).filter(id => String(id) !== commIdStr);
+                await updateDoc(doc(db, 'users', currentUser.id.toString()), {
+                    communityIds: updatedCommunityIds
+                });
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `communities/${commIdStr}`);
             }
-            return c;
-        }));
-        setCurrentUser(prev => ({
-            ...prev,
-            communityIds: (prev.communityIds || []).filter(id => id !== communityId)
-        }));
+        }
     };
 
-    const handleJoinWorld = (worldId: number) => {
-        setWorlds(prev => prev.map(w => {
-            if (w.id === worldId) {
-                if (w.members.some(m => m.id === currentUser.id)) return w;
-                return {
-                    ...w,
-                    members: [...w.members, { ...currentUser, role: 'Member' }]
-                };
+    const handleJoinWorld = async (worldId: number | string) => {
+        const worldIdStr = String(worldId);
+
+        if (isOffline) {
+            setWorlds(prev => prev.map(w => {
+                if (String(w.id) === worldIdStr) {
+                    if (w.members.some(m => String(m.id) === String(currentUser.id))) return w;
+                    return {
+                        ...w,
+                        members: [...w.members, { ...currentUser, role: 'Member' }]
+                    };
+                }
+                return w;
+            }));
+        } else {
+            const targetWorld = worlds.find(w => String(w.id) === worldIdStr);
+            if (!targetWorld) return;
+            if (targetWorld.members.some(m => String(m.id) === String(currentUser.id))) return;
+            const updatedWorld = {
+                ...targetWorld,
+                members: [...targetWorld.members, { ...currentUser, role: 'Member' as any }]
+            };
+            try {
+                await setDoc(doc(db, 'worlds', worldIdStr), updatedWorld);
+            } catch (err) {
+                handleFirestoreError(err, OperationType.UPDATE, `worlds/${worldIdStr}`);
             }
-            return w;
-        }));
+        }
     };
 
     const handlePurchase = (item: ShopItem) => {

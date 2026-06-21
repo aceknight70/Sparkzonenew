@@ -1,11 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
 
 // Initialize core Firebase Applet client
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+
+// Configure Firestore with long polling to ensure complete network reliability under restricted sandboxes (such as nested iframes)
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId || "(default)"); /* CRITICAL: The app will break without this line */
+
 export const auth = getAuth();
 
 // --- Firestore Error Handling Specification ---

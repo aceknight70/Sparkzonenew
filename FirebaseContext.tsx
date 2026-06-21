@@ -126,25 +126,11 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const loginWithGoogle = async () => {
-    setLoading(true);
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-      throw err;
-    }
+    throw new Error("Google login is disabled.");
   };
 
   const loginAsGuest = async () => {
-    setLoading(true);
-    try {
-      await signInAnonymously(auth);
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-      throw err;
-    }
+    throw new Error("Guest access is disabled.");
   };
 
   const loginWithEmail = async (email: string, password: string) => {

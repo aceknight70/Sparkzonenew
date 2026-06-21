@@ -1,0 +1,11 @@
+{
+  "name": "Spark Zone",
+  "description": "A collaborative social roleplay universe with live rooms, a comprehensive local database library, active workshop builders, custom card action fights, and multimedia storytelling.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

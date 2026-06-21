@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data including safety settings and social graphs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Equal to the Firestore Document ID and Auth UID" },
+        "name": { "type": "string", "description": "Display name of the user" },
+        "avatarUrl": { "type": "string", "description": "URL to the user avatar" },
+        "bio": { "type": "string", "description": "Short bio" },
+        "bannerUrl": { "type": "string", "description": "URL to banner image" },
+        "pronouns": { "type": "string", "description": "Pronouns" },
+        "age": { "type": "string", "description": "Age" },
+        "gender": { "type": "string", "description": "Gender" },
+        "nationality": { "type": "string", "description": "Nationality" },
+        "isPremium": { "type": "boolean", "description": "Premium subscriber status" },
+        "followingIds": { "type": "array", "description": "Array of followed user IDs" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation time of user profile" }
+      },
+      "required": ["id", "name", "avatarUrl"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A feed post created by a user, optionally posting as a character",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique key" },
+        "authorId": { "type": "string", "description": "User ID of creator" },
+        "authorName": { "type": "string", "description": "Author display name" },
+        "authorAvatarUrl": { "type": "string", "description": "Author avatar URL" },
+        "characterId": { "type": "string", "description": "Optional Character ID if posting as a character" },
+        "characterName": { "type": "string", "description": "Optional name of character" },
+        "characterImageUrl": { "type": "string", "description": "Optional avatar of character" },
+        "content": { "type": "string", "description": "Text content of the post" },
+        "mediaUrl": { "type": "string", "description": "Optional media attachment URL" },
+        "mediaType": { "type": "string", "description": "Optional media type (image | video)" },
+        "sparks": { "type": "number", "description": "Number of reactions/likes" },
+        "sparkedBy": { "type": "array", "description": "User IDs who sparked this post" },
+        "commentsCount": { "type": "number", "description": "Count of comments" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "authorId", "authorName", "authorAvatarUrl", "content", "sparks", "sparkedBy", "commentsCount", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a specific post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique comment ID" },
+        "postId": { "type": "string", "description": "Target post ID" },
+        "authorId": { "type": "string", "description": "User ID of commenter" },
+        "authorName": { "type": "string", "description": "Commenter name" },
+        "authorAvatarUrl": { "type": "string", "description": "Commenter avatar URL" },
+        "characterId": { "type": "string", "description": "Optional character ID if commenting as character" },
+        "characterName": { "type": "string", "description": "Optional character name" },
+        "characterImageUrl": { "type": "string", "description": "Optional character avatar" },
+        "content": { "type": "string", "description": "Comment content" },
+        "sparks": { "type": "number", "description": "Likes/sparks on comment" },
+        "sparkedBy": { "type": "array", "description": "User IDs who liked comment" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "postId", "authorId", "authorName", "authorAvatarUrl", "content", "sparks", "sparkedBy", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A metadata document tracking a two-user chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique conversation key" },
+        "participantIds": { "type": "array", "description": "Array of user IDs involved in the conversation (always length 2)" },
+        "typing": { "type": "object", "description": "Map of participant ID to typing boolean state" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last activity timestamp" }
+      },
+      "required": ["id", "participantIds", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A private message inside a conversation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatarUrl": { "type": "string" },
+        "characterId": { "type": "string" },
+        "characterName": { "type": "string" },
+        "characterImageUrl": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "text", "senderId", "senderName", "senderAvatarUrl", "type", "createdAt"]
+    },
+    "Character": {
+      "title": "Character",
+      "description": "An Original Character (OC) created by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "epithet": { "type": "string" },
+        "tagline": { "type": "string" },
+        "archetypeTags": { "type": "array" },
+        "appearance": { "type": "string" },
+        "backstory": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "imageUrl", "status", "authorId", "authorName", "epithet", "tagline", "archetypeTags", "createdAt"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "A collaborative story",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "synopsis": { "type": "string" },
+        "genreTags": { "type": "array" },
+        "mainCharacterIds": { "type": "array" },
+        "coAuthorIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "imageUrl", "status", "authorId", "authorName", "synopsis", "genreTags", "createdAt"]
+    },
+    "World": {
+      "title": "World",
+      "description": "A role-playing world",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "synopsis": { "type": "string" },
+        "genreTags": { "type": "array" },
+        "bannerUrl": { "type": "string" },
+        "rules": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "imageUrl", "status", "authorId", "authorName", "tagline", "synopsis", "genreTags", "bannerUrl", "createdAt"]
+    },
+    "Party": {
+      "title": "Party",
+      "description": "A role-playing group lobby or session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "description": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "imageUrl", "status", "authorId", "authorName", "description", "isPublic", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Individual user profiles mapped to Authentication UID"
+    },
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Social feed content of Spark Zone"
+    },
+    "comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Post comment entries"
+    },
+    "conversations/{convoId}": {
+      "schema": "Conversation",
+      "description": "Social DM thread records"
+    },
+    "conversations/{convoId}/messages/{msgId}": {
+      "schema": "Message",
+      "description": "Specific chat bubbles within a DM thread"
+    },
+    "worlds/{worldId}": {
+      "schema": "World",
+      "description": "Shared roleplaying universes"
+    },
+    "characters/{characterId}": {
+      "schema": "Character",
+      "description": "OC and AI characters"
+    },
+    "stories/{storyId}": {
+      "schema": "Story",
+      "description": "User created collaborative story projects"
+    },
+    "parties/{partyId}": {
+      "schema": "Party",
+      "description": "Lobby parties for synchronous play"
+    }
+  }
+}

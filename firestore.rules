@@ -1,0 +1,185 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global safety net: deny-by-default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helper Functions ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isParticipant(convoId, userId) {
+      return exists(/databases/$(database)/documents/conversations/$(convoId)) &&
+        (userId in get(/databases/$(database)/documents/conversations/$(convoId)).data.participantIds);
+    }
+
+    // --- Entity Validation Helpers ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'avatarUrl'])
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 50
+        && data.avatarUrl is string && data.avatarUrl.size() <= 1024;
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['id', 'authorId', 'authorName', 'authorAvatarUrl', 'content', 'sparks', 'sparkedBy', 'commentsCount', 'createdAt'])
+        && data.id is string
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.authorName is string && data.authorName.size() <= 100
+        && data.authorAvatarUrl is string && data.authorAvatarUrl.size() <= 1024
+        && data.content is string && data.content.size() <= 5000
+        && data.sparks is int
+        && data.sparkedBy is list
+        && data.commentsCount is int;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['id', 'postId', 'authorId', 'authorName', 'authorAvatarUrl', 'content', 'sparks', 'sparkedBy', 'createdAt'])
+        && data.id is string
+        && data.postId is string
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.authorName is string && data.authorName.size() <= 100
+        && data.authorAvatarUrl is string && data.authorAvatarUrl.size() <= 1024
+        && data.content is string && data.content.size() <= 5000
+        && data.sparks is int
+        && data.sparkedBy is list;
+    }
+
+    function isValidConversation(data) {
+      return data.keys().hasAll(['id', 'participantIds', 'updatedAt'])
+        && data.id is string
+        && data.participantIds is list && data.participantIds.size() == 2
+        && (!data.keys().hasAny(['typing']) || data.typing is map);
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'text', 'senderId', 'senderName', 'senderAvatarUrl', 'type', 'createdAt'])
+        && data.id is string
+        && data.text is string && data.text.size() <= 10000
+        && data.senderId is string && data.senderId.size() <= 128
+        && data.senderName is string && data.senderName.size() <= 100
+        && data.senderAvatarUrl is string && data.senderAvatarUrl.size() <= 1024
+        && data.type is string && data.type.size() <= 50;
+    }
+
+    function isValidCreation(data) {
+      return data.keys().hasAll(['id', 'name', 'imageUrl', 'status', 'authorId', 'authorName', 'createdAt'])
+        && data.id is string
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.imageUrl is string && data.imageUrl.size() <= 1024
+        && data.status is string && (data.status == 'Draft' || data.status == 'Published' || data.status == 'Active')
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.authorName is string && data.authorName.size() <= 100;
+    }
+
+    // --- Collection Routes ---
+
+    // 2. Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && userId == request.auth.uid && incoming().id == request.auth.uid && isValidUser(incoming());
+      allow update: if isOwner(userId) && incoming().id == existing().id && isValidUser(incoming());
+      allow delete: if false; // Profiles are immortal
+    }
+
+    // 3. Posts Collection
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidPost(incoming());
+      // Owner can edit fully. Others can only update reaction fields ('sparks' and 'sparkedBy') via hasOnly
+      allow update: if isSignedIn() && (
+        (isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidPost(incoming()))
+        || (incoming().diff(existing()).affectedKeys().hasOnly(['sparks', 'sparkedBy']))
+      );
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // 4. Comments Collection
+    match /comments/{commentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidComment(incoming());
+      allow update: if isSignedIn() && (
+        (isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidComment(incoming()))
+        || (incoming().diff(existing()).affectedKeys().hasOnly(['sparks', 'sparkedBy']))
+      );
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // 5. Conversations Collection
+    match /conversations/{convoId} {
+      allow read: if isSignedIn() && (request.auth.uid in existing().participantIds);
+      allow create: if isSignedIn() && (request.auth.uid in incoming().participantIds) && isValidConversation(incoming());
+      allow update: if isSignedIn() && (request.auth.uid in existing().participantIds) && isValidConversation(incoming());
+      allow delete: if false; // Chats cannot be deleted directly
+
+      // Subcollection: private messages within conversation
+      match /messages/{msgId} {
+        allow read: if isSignedIn() && isParticipant(convoId, request.auth.uid);
+        allow create: if isSignedIn() && isParticipant(convoId, request.auth.uid) && incoming().senderId == request.auth.uid && isValidMessage(incoming());
+        allow update, delete: if false; // Message history is immutable
+      }
+    }
+
+    // 6. Worlds Collection
+    match /worlds/{worldId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
+      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // 7. Characters Collection
+    match /characters/{characterId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
+      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // 8. Stories Collection
+    match /stories/{storyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
+      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // 9. Parties Collection
+    match /parties/{partyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
+      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    // 10. Communities Collection
+    match /communities/{communityId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+  }
+}

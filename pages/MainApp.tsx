@@ -831,6 +831,25 @@ const MainApp: React.FC = () => {
         }
     };
 
+    const pruneWorldMessages = (w: any) => {
+        if (!w || !w.locations) return w;
+        return {
+            ...w,
+            locations: w.locations.map((cat: any) => ({
+                ...cat,
+                channels: cat.channels ? cat.channels.map((chan: any) => {
+                    const messages = chan.messages || [];
+                    // Keep the last 30 messages to avoid Firestore 1MB document size limits
+                    const pruned = messages.length > 30 ? messages.slice(messages.length - 30) : messages;
+                    return {
+                        ...chan,
+                        messages: pruned
+                    };
+                }) : []
+            }))
+        };
+    };
+
     const handleSendGroupMessage = async (worldId: number | string, locationId: number | string, text: string, character?: UserCreation, imageUrl?: string, audioUrl?: string) => {
         const newMessage = {
             id: Date.now(),
@@ -857,7 +876,7 @@ const MainApp: React.FC = () => {
                             return chan;
                         })
                     }));
-                    return { ...w, locations: newLocations };
+                    return pruneWorldMessages({ ...w, locations: newLocations });
                 }
                 return w;
             }));
@@ -876,7 +895,7 @@ const MainApp: React.FC = () => {
                     return chan;
                 })
             }));
-            const updatedWorld = { ...targetWorld, locations: newLocations };
+            const updatedWorld = pruneWorldMessages({ ...targetWorld, locations: newLocations });
             try {
                 await setDoc(doc(db, 'worlds', String(worldId)), updatedWorld);
             } catch (err) {
@@ -901,7 +920,7 @@ const MainApp: React.FC = () => {
                             return chan;
                         })
                     }));
-                    return { ...w, locations: newLocations };
+                    return pruneWorldMessages({ ...w, locations: newLocations });
                 }
                 return w;
             }));
@@ -920,7 +939,7 @@ const MainApp: React.FC = () => {
                     return chan;
                 })
             }));
-            const updatedWorld = { ...targetWorld, locations: newLocations };
+            const updatedWorld = pruneWorldMessages({ ...targetWorld, locations: newLocations });
             try {
                 await setDoc(doc(db, 'worlds', String(worldId)), updatedWorld);
             } catch (err) {
@@ -1044,7 +1063,7 @@ const MainApp: React.FC = () => {
             }
         } else {
             const worldId = overlay?.type === 'world-create' ? String(Date.now()) : String(worldData.id);
-            const dbWorld = {
+            const dbWorld = pruneWorldMessages({
                 type: 'World',
                 status: 'Published',
                 ...worldData,
@@ -1052,7 +1071,7 @@ const MainApp: React.FC = () => {
                 authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
                 authorName: currentUser.name || firebaseUser?.displayName || 'Guest Artist',
                 createdAt: worldData.createdAt || new Date().toISOString()
-            };
+            });
             try {
                 await setDoc(doc(db, 'worlds', worldId), dbWorld);
                 handleOverlay({ type: 'world', id: worldId as any });
@@ -1350,10 +1369,10 @@ const MainApp: React.FC = () => {
             const targetWorld = worlds.find(w => String(w.id) === worldIdStr);
             if (!targetWorld) return;
             if (targetWorld.members.some(m => String(m.id) === String(currentUser.id))) return;
-            const updatedWorld = {
+            const updatedWorld = pruneWorldMessages({
                 ...targetWorld,
                 members: [...targetWorld.members, { ...currentUser, role: 'Member' as any }]
-            };
+            });
             try {
                 await setDoc(doc(db, 'worlds', worldIdStr), updatedWorld);
             } catch (err) {

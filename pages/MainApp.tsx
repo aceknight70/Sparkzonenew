@@ -832,21 +832,92 @@ const MainApp: React.FC = () => {
     };
 
     const pruneWorldMessages = (w: any) => {
-        if (!w || !w.locations) return w;
+        if (!w) return w;
+        
+        const cleanMembers = w.members ? w.members.map((m: any) => ({
+            id: m.id,
+            name: m.name || 'Anonymous Creator',
+            avatarUrl: m.avatarUrl || '',
+            role: m.role || 'Member',
+            bio: m.bio || '',
+            pronouns: m.pronouns || ''
+        })) : [];
+
         return {
             ...w,
-            locations: w.locations.map((cat: any) => ({
+            members: cleanMembers,
+            locations: w.locations ? w.locations.map((cat: any) => ({
                 ...cat,
                 channels: cat.channels ? cat.channels.map((chan: any) => {
                     const messages = chan.messages || [];
-                    // Keep the last 30 messages to avoid Firestore 1MB document size limits
-                    const pruned = messages.length > 30 ? messages.slice(messages.length - 30) : messages;
+                    // Keep the last 20 messages for Firestore document size safety
+                    const limited = messages.length > 20 ? messages.slice(messages.length - 20) : messages;
+                    const pruned = limited.map((m: any) => ({
+                        id: m.id,
+                        text: m.text,
+                        timestamp: m.timestamp,
+                        sender: m.sender ? {
+                            id: m.sender.id,
+                            name: m.sender.name || 'Anonymous Creator',
+                            avatarUrl: m.sender.avatarUrl || '',
+                            role: m.sender.role || 'Member'
+                        } : { id: 0, name: 'Anonymous', avatarUrl: '', role: 'Member' },
+                        character: m.character ? {
+                            id: m.character.id,
+                            name: m.character.name,
+                            imageUrl: m.character.imageUrl || ''
+                        } : undefined,
+                        imageUrl: m.imageUrl || '',
+                        audioUrl: m.audioUrl || ''
+                    }));
                     return {
                         ...chan,
                         messages: pruned
                     };
                 }) : []
-            }))
+            })) : []
+        };
+    };
+
+    const pruneParty = (p: any) => {
+        if (!p) return p;
+
+        const cleanMembers = p.members ? p.members.map((m: any) => ({
+            id: m.id,
+            name: m.name || 'Anonymous Creator',
+            avatarUrl: m.avatarUrl || '',
+            role: m.role || 'Member',
+            bio: m.bio || '',
+            pronouns: m.pronouns || ''
+        })) : [];
+
+        const chat = p.chat || [];
+        // Keep the last 20 messages for Firestore document size safety
+        const limitedChat = chat.length > 20 ? chat.slice(chat.length - 20) : chat;
+        const prunedChat = limitedChat.map((m: any) => ({
+            id: m.id,
+            text: m.text,
+            timestamp: m.timestamp,
+            sender: m.sender ? {
+                id: m.sender.id,
+                name: m.sender.name || 'Anonymous Creator',
+                avatarUrl: m.sender.avatarUrl || '',
+                isHost: !!m.sender.isHost
+            } : { id: 0, name: 'Anonymous', avatarUrl: '', isHost: false },
+            character: m.character ? {
+                id: m.character.id,
+                name: m.character.name,
+                imageUrl: m.character.imageUrl || ''
+            } : undefined,
+            roll: m.roll || null,
+            imageUrl: m.imageUrl || '',
+            audioUrl: m.audioUrl || ''
+        }));
+
+        return {
+            ...p,
+            members: cleanMembers,
+            chat: prunedChat
         };
     };
 
@@ -990,10 +1061,10 @@ const MainApp: React.FC = () => {
             const targetParty = parties.find(p => String(p.id) === String(partyId));
             if (!targetParty) return;
             newMessageItem.sender.isHost = String(targetParty.hostId) === String(currentUser.id);
-            const updatedParty = {
+            const updatedParty = pruneParty({
                 ...targetParty,
                 chat: [...targetParty.chat, newMessageItem]
-            };
+            });
             try {
                 await setDoc(doc(db, 'parties', String(partyId)), updatedParty);
             } catch (err) {
@@ -1016,10 +1087,10 @@ const MainApp: React.FC = () => {
         } else {
             const targetParty = parties.find(p => String(p.id) === String(partyId));
             if (!targetParty) return;
-            const updatedParty = {
+            const updatedParty = pruneParty({
                 ...targetParty,
                 chat: targetParty.chat.filter(m => String(m.id) !== String(messageId))
-            };
+            });
             try {
                 await setDoc(doc(db, 'parties', String(partyId)), updatedParty);
             } catch (err) {
@@ -1161,7 +1232,7 @@ const MainApp: React.FC = () => {
             }
         } else {
             const partyId = overlay?.type === 'party-create' ? String(Date.now()) : String(partyData.id);
-            const dbParty = {
+            const dbParty = pruneParty({
                 type: 'Party',
                 status: partyData.status || 'Active',
                 ...partyData,
@@ -1170,7 +1241,7 @@ const MainApp: React.FC = () => {
                 authorName: currentUser.name || firebaseUser?.displayName || 'Guest Artist',
                 hostId: partyData.hostId || (firebaseUser ? firebaseUser.uid : currentUser.id.toString()),
                 createdAt: partyData.createdAt || new Date().toISOString()
-            };
+            });
             try {
                 await setDoc(doc(db, 'parties', partyId), dbParty);
                 handleOverlay({ type: 'party-view', id: partyId as any });
@@ -1186,7 +1257,7 @@ const MainApp: React.FC = () => {
             setUserCreations(prev => prev.map(c => c.id === updatedParty.id ? updatedParty : c));
         } else {
             try {
-                await setDoc(doc(db, 'parties', String(updatedParty.id)), updatedParty);
+                await setDoc(doc(db, 'parties', String(updatedParty.id)), pruneParty(updatedParty));
             } catch (err) {
                 handleFirestoreError(err, OperationType.UPDATE, `parties/${updatedParty.id}`);
             }

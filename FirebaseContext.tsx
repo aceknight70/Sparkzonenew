@@ -104,6 +104,17 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   useEffect(() => {
+    // Safety timer: Ensure loading gets cleared even if Firestore/Auth network connection lags
+    const safetyTimer = setTimeout(() => {
+      setLoading(currentLoading => {
+        if (currentLoading) {
+          console.warn('Firebase connection handshake taking longer than expected. Enabling Sandbox Bypass.');
+          return false;
+        }
+        return currentLoading;
+      });
+    }, 4000);
+
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
       try {
@@ -118,11 +129,15 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } catch (err) {
         console.error('Authentication configuration error:', err);
       } finally {
+        clearTimeout(safetyTimer);
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   const loginWithGoogle = async () => {

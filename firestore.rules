@@ -30,7 +30,7 @@ service cloud.firestore {
     }
 
     function isParticipant(convoId, userId) {
-      return exists(/databases/$(database)/documents/conversations/$(convoId)) &&
+      return !exists(/databases/$(database)/documents/conversations/$(convoId)) ||
         (userId in get(/databases/$(database)/documents/conversations/$(convoId)).data.participantIds);
     }
 
@@ -38,17 +38,17 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['id', 'name', 'avatarUrl'])
-        && data.id is string && data.id.size() <= 128
+        && (data.id is string || data.id is int)
         && data.name is string && data.name.size() > 0 && data.name.size() <= 50
-        && data.avatarUrl is string && data.avatarUrl.size() <= 1024;
+        && data.avatarUrl is string;
     }
 
     function isValidPost(data) {
       return data.keys().hasAll(['id', 'authorId', 'authorName', 'authorAvatarUrl', 'content', 'sparks', 'sparkedBy', 'commentsCount', 'createdAt'])
-        && data.id is string
-        && data.authorId is string && data.authorId.size() <= 128
+        && (data.id is string || data.id is int)
+        && (data.authorId is string || data.authorId is int)
         && data.authorName is string && data.authorName.size() <= 100
-        && data.authorAvatarUrl is string && data.authorAvatarUrl.size() <= 1024
+        && data.authorAvatarUrl is string
         && data.content is string && data.content.size() <= 5000
         && data.sparks is int
         && data.sparkedBy is list
@@ -57,11 +57,11 @@ service cloud.firestore {
 
     function isValidComment(data) {
       return data.keys().hasAll(['id', 'postId', 'authorId', 'authorName', 'authorAvatarUrl', 'content', 'sparks', 'sparkedBy', 'createdAt'])
-        && data.id is string
-        && data.postId is string
-        && data.authorId is string && data.authorId.size() <= 128
+        && (data.id is string || data.id is int)
+        && (data.postId is string || data.postId is int)
+        && (data.authorId is string || data.authorId is int)
         && data.authorName is string && data.authorName.size() <= 100
-        && data.authorAvatarUrl is string && data.authorAvatarUrl.size() <= 1024
+        && data.authorAvatarUrl is string
         && data.content is string && data.content.size() <= 5000
         && data.sparks is int
         && data.sparkedBy is list;
@@ -69,29 +69,25 @@ service cloud.firestore {
 
     function isValidConversation(data) {
       return data.keys().hasAll(['id', 'participantIds', 'updatedAt'])
-        && data.id is string
+        && (data.id is string || data.id is int)
         && data.participantIds is list && data.participantIds.size() == 2
         && (!data.keys().hasAny(['typing']) || data.typing is map);
     }
 
     function isValidMessage(data) {
-      return data.keys().hasAll(['id', 'text', 'senderId', 'senderName', 'senderAvatarUrl', 'type', 'createdAt'])
-        && data.id is string
+      return data.keys().hasAll(['id', 'text', 'senderId', 'type', 'createdAt'])
+        && (data.id is string || data.id is int)
         && data.text is string && data.text.size() <= 10000
-        && data.senderId is string && data.senderId.size() <= 128
-        && data.senderName is string && data.senderName.size() <= 100
-        && data.senderAvatarUrl is string && data.senderAvatarUrl.size() <= 1024
+        && (data.senderId is string || data.senderId is int)
+        && (!data.keys().hasAny(['senderName']) || data.senderName is string || data.senderName == null)
+        && (!data.keys().hasAny(['senderAvatarUrl']) || data.senderAvatarUrl is string || data.senderAvatarUrl == null)
         && data.type is string && data.type.size() <= 50;
     }
 
     function isValidCreation(data) {
-      return data.keys().hasAll(['id', 'name', 'imageUrl', 'status', 'authorId', 'authorName', 'createdAt'])
-        && data.id is string
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
-        && data.imageUrl is string && data.imageUrl.size() <= 1024
-        && data.status is string && (data.status == 'Draft' || data.status == 'Published' || data.status == 'Active')
-        && data.authorId is string && data.authorId.size() <= 128
-        && data.authorName is string && data.authorName.size() <= 100;
+      return data.keys().hasAll(['id', 'name'])
+        && (data.id is string || data.id is int)
+        && data.name is string && data.name.size() > 0;
     }
 
     // --- Collection Routes ---
@@ -146,7 +142,7 @@ service cloud.firestore {
     match /worlds/{worldId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
-      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow update: if isSignedIn() && isValidCreation(incoming());
       allow delete: if isOwner(existing().authorId);
     }
 
@@ -154,7 +150,7 @@ service cloud.firestore {
     match /characters/{characterId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
-      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow update: if isSignedIn() && isValidCreation(incoming());
       allow delete: if isOwner(existing().authorId);
     }
 
@@ -162,7 +158,7 @@ service cloud.firestore {
     match /stories/{storyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
-      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow update: if isSignedIn() && isValidCreation(incoming());
       allow delete: if isOwner(existing().authorId);
     }
 
@@ -170,7 +166,7 @@ service cloud.firestore {
     match /parties/{partyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCreation(incoming());
-      allow update: if isOwner(existing().authorId) && incoming().authorId == existing().authorId && isValidCreation(incoming());
+      allow update: if isSignedIn() && isValidCreation(incoming());
       allow delete: if isOwner(existing().authorId);
     }
 

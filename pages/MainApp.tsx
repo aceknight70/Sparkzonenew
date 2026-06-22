@@ -20,12 +20,27 @@ import {
     query, 
     orderBy, 
     onSnapshot, 
-    setDoc, 
-    updateDoc, 
+    setDoc as firestoreSetDoc, 
+    updateDoc as firestoreUpdateDoc, 
     where, 
     getDoc, 
     getDocs 
 } from 'firebase/firestore';
+
+const cleanUndefined = (obj: any): any => {
+    if (obj === undefined || obj === null) return null;
+    return JSON.parse(JSON.stringify(obj, (key, value) => {
+        return value === undefined ? null : value;
+    }));
+};
+
+const setDoc = (reference: any, data: any, options?: any) => {
+    return firestoreSetDoc(reference, cleanUndefined(data), options);
+};
+
+const updateDoc = (reference: any, data: any) => {
+    return firestoreUpdateDoc(reference, cleanUndefined(data));
+};
 
 // Viewers
 import WorldPage from './WorldPage';
@@ -671,7 +686,7 @@ const MainApp: React.FC = () => {
         const existingConvo = conversations.find(c => c.participant.id.toString() === userIdStr);
         if (existingConvo) {
             setOverlay(null); 
-            setActivePage(Page.PageActiveMessenger || Page.Messenger);
+            setActivePage(Page.Messenger);
             return;
         }
 
@@ -1062,6 +1077,8 @@ const MainApp: React.FC = () => {
         } else {
             const charId = overlay?.type === 'character-create' ? String(Date.now()) : String(charData.id);
             const dbChar = {
+                type: 'Character',
+                status: charData.status || 'Active',
                 ...charData,
                 id: charId,
                 authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
@@ -1091,6 +1108,8 @@ const MainApp: React.FC = () => {
         } else {
             const storyId = overlay?.type === 'story-create' ? String(Date.now()) : String(storyData.id);
             const dbStory = {
+                type: 'Story',
+                status: storyData.status || 'Published',
                 ...storyData,
                 id: storyId,
                 authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
@@ -1124,6 +1143,8 @@ const MainApp: React.FC = () => {
         } else {
             const partyId = overlay?.type === 'party-create' ? String(Date.now()) : String(partyData.id);
             const dbParty = {
+                type: 'Party',
+                status: partyData.status || 'Active',
                 ...partyData,
                 id: partyId,
                 authorId: firebaseUser ? firebaseUser.uid : currentUser.id.toString(),
@@ -1666,7 +1687,7 @@ const MainApp: React.FC = () => {
                 return (
                     <ProfilePage 
                         currentUser={currentUser}
-                        userCreations={userCreations.filter(c => c.authorId === currentUser.id)}
+                        userCreations={userCreations}
                         allCommunities={communities}
                         onSelectCommunity={(id) => handleOverlay({ type: 'community', id })}
                         onUpdateProfile={handleUpdateProfile}
@@ -1674,6 +1695,8 @@ const MainApp: React.FC = () => {
                         onEnterSparkClash={() => handleOverlay({ type: 'spark-clash' })}
                         onOpenShop={() => handleOverlay({ type: 'shop' })}
                         allUsers={users}
+                        onLogout={logout}
+                        onStartConversation={handleStartConversation}
                     />
                 );
             case Page.Party:

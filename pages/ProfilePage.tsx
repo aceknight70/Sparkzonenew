@@ -30,6 +30,7 @@ interface ProfilePageProps {
     onOpenShop: () => void;
     allUsers: User[];
     onLogout?: () => void;
+    onStartConversation?: (userId: number | string) => void;
 }
 
 type ProfileView = 'profile' | 'wallet' | 'notifications' | 'friends' | 'feedback' | 'settings';
@@ -44,11 +45,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     onEnterSparkClash,
     onOpenShop,
     allUsers,
-    onLogout
+    onLogout,
+    onStartConversation
 }) => {
     const [activeView, setActiveView] = useState<ProfileView>('profile');
     const [creationFilter, setCreationFilter] = useState<'All' | 'Character' | 'World' | 'Story'>('All');
     const [friendSearchTerm, setFriendSearchTerm] = useState('');
+    const [viewedUser, setViewedUser] = useState<User | null>(null);
 
     const joinedCommunities = allCommunities.filter(c => currentUser.communityIds?.includes(c.id));
     
@@ -107,7 +110,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     );
 
     const FriendsView = () => {
-        const following = allUsers.filter(u => currentUser.followingIds?.includes(u.id));
+        const following = allUsers.filter(u => currentUser.followingIds?.some(id => String(id) === String(u.id)));
         
         // If searching, search global users. If not, show following.
         const usersToDisplay = friendSearchTerm 
@@ -115,10 +118,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             : following;
 
         const toggleFollow = (userId: number) => {
-            const isFollowing = currentUser.followingIds?.includes(userId);
+            const isFollowing = currentUser.followingIds?.some(id => String(id) === String(userId));
             let newFollowingIds = currentUser.followingIds || [];
             if (isFollowing) {
-                newFollowingIds = newFollowingIds.filter(id => id !== userId);
+                newFollowingIds = newFollowingIds.filter(id => String(id) !== String(userId));
             } else {
                 newFollowingIds = [...newFollowingIds, userId];
             }
@@ -142,22 +145,35 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
                 <div className="bg-gray-900/50 rounded-lg border border-violet-500/30 divide-y divide-gray-800">
                     {usersToDisplay.length > 0 ? usersToDisplay.map(user => {
-                        const isFollowing = currentUser.followingIds?.includes(user.id);
+                        const isFollowing = currentUser.followingIds?.some(id => String(id) === String(user.id));
                         return (
                             <div key={user.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <UserAvatar src={user.avatarUrl} size="10" />
+                                <div className="flex items-center gap-3 cursor-pointer group/friend" onClick={() => setViewedUser(user)}>
+                                    <UserAvatar src={user.avatarUrl} size="10" className="group-hover/friend:ring-2 group-hover/friend:ring-cyan-400 transition-all border border-gray-700" />
                                     <div>
-                                        <p className="font-bold text-white">{user.name}</p>
+                                        <p className="font-bold text-white group-hover/friend:text-cyan-400 transition-colors">{user.name}</p>
                                         <p className="text-xs text-gray-400">@{user.name.toLowerCase().replace(/\s+/g, '_')}</p>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={() => toggleFollow(user.id)}
-                                    className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-colors ${isFollowing ? 'border-red-500/50 text-red-400 hover:bg-red-900/20' : 'border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20'}`}
-                                >
-                                    {isFollowing ? 'Unfollow' : 'Follow'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {onStartConversation && (
+                                        <button 
+                                            onClick={() => onStartConversation(user.id)}
+                                            className="p-2 bg-gray-800 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 rounded-full border border-gray-700 hover:border-cyan-500/50 transition-all"
+                                            title={`Message ${user.name}`}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.53A1.5 1.5 0 002.25 4.029c-.296 2.007-.45 4.06-.45 6.151 0 1.912.128 3.824.378 5.727l1.378-1.127A1.5 1.5 0 014.5 14.5H9c2.236 0 4.43-.18 6.57-.53a1.5 1.5 0 001.2-1.2h.001c.294-2 .449-4.043.449-6.12 0-1.921-.131-3.844-.383-5.76A1.5 1.5 0 0015.57 2.53C13.882 2.18 11.96 2 10 2z" clipRule="evenodd" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => toggleFollow(user.id)}
+                                        className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-colors ${isFollowing ? 'border-red-500/50 text-red-400 hover:bg-red-900/20' : 'border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/20'}`}
+                                    >
+                                        {isFollowing ? 'Unfollow' : 'Follow'}
+                                    </button>
+                                </div>
                             </div>
                         );
                     }) : (
@@ -226,8 +242,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
     );
 
+    const myCreations = useMemo(() => {
+        return userCreations.filter(c => String(c.authorId) === String(currentUser.id));
+    }, [userCreations, currentUser.id]);
+
     const MainProfileView = () => {
-        const filteredCreations = userCreations.filter(c => creationFilter === 'All' || c.type === creationFilter);
+        const filteredCreations = myCreations.filter(c => creationFilter === 'All' || c.type === creationFilter);
         return (
             <div className="animate-fadeIn">
                 {/* Stats & Actions Row */}
@@ -241,7 +261,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                         <span className="text-xs font-bold text-gray-400 group-hover:text-yellow-400">Spark Clash</span>
                     </button>
                     <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center">
-                        <span className="text-2xl font-bold text-white">{userCreations.length}</span>
+                        <span className="text-2xl font-bold text-white">{myCreations.length}</span>
                         <span className="text-xs font-bold text-gray-500">Creations</span>
                     </div>
                     <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center">
@@ -282,11 +302,139 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                             ))}
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {filteredCreations.map(creation => (
-                            <CreationCard key={creation.id} creation={creation} />
-                        ))}
+                    {filteredCreations.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {filteredCreations.map(creation => (
+                                <CreationCard key={creation.id} creation={creation} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center border border-dashed border-gray-800 rounded-xl">
+                            <p className="text-gray-500">No creations in workshops yet.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const ViewedUserProfileView = ({ user }: { user: User }) => {
+        const [creationsFilter, setCreationsFilter] = useState<'All' | 'Character' | 'World' | 'Story'>('All');
+        const isFollowing = currentUser.followingIds?.some(id => String(id) === String(user.id));
+        
+        const creations = userCreations.filter(c => String(c.authorId) === String(user.id));
+        const filteredCreations = creations.filter(c => creationsFilter === 'All' || c.type === creationsFilter);
+        const userCommunities = allCommunities.filter(c => user.communityIds?.includes(c.id));
+
+        const handleViewedUserToggleFollow = () => {
+            const isFollowingUser = currentUser.followingIds?.some(id => String(id) === String(user.id));
+            let newFollowingIds = currentUser.followingIds || [];
+            if (isFollowingUser) {
+                newFollowingIds = newFollowingIds.filter(id => String(id) !== String(user.id));
+            } else {
+                newFollowingIds = [...newFollowingIds, user.id];
+            }
+            onUpdateProfile({ followingIds: newFollowingIds });
+        };
+
+        return (
+            <div className="animate-fadeIn">
+                {/* Header Section */}
+                <div className="relative -mx-4 md:-mx-8 -mt-4 md:-mt-8 mb-20">
+                    <div className="h-48 bg-cover bg-center bg-gray-950" style={{ backgroundImage: `url(${user.bannerUrl || 'https://via.placeholder.com/1200x300'})` }}>
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black"></div>
                     </div>
+                    {/* Back Button */}
+                    <button 
+                        onClick={() => setViewedUser(null)}
+                        className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/65 hover:bg-black text-white hover:text-cyan-400 rounded-full border border-white/10 transition-colors font-semibold text-xs"
+                    >
+                        <ArrowLeftIcon />
+                        Back
+                    </button>
+                    
+                    <div className="absolute -bottom-16 left-6 flex items-end">
+                        <UserAvatar src={user.avatarUrl} size="28" className="border-4 border-black" />
+                        <div className="mb-4 ml-4">
+                            <h1 className="text-3xl font-black text-white flex items-center gap-2">
+                                {user.name}
+                                {user.isPremium && <span className="text-yellow-400 text-lg" title="Premium Member">★</span>}
+                            </h1>
+                            <div className="flex flex-wrap gap-2 text-sm text-gray-300 mt-1 mb-2">
+                                {user.pronouns && <span className="bg-gray-800 px-2 py-0.5 rounded text-xs border border-gray-700 text-gray-400">{user.pronouns}</span>}
+                                {user.age && <span>{user.age} y/o</span>}
+                                {user.gender && <span>{user.gender}</span>}
+                                {user.nationality && <span className="flex items-center gap-1">📍 {user.nationality}</span>}
+                            </div>
+                            <p className="text-gray-400 max-w-sm line-clamp-2">{user.bio || "No bio set."}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Primary Action Row */}
+                <div className="flex flex-wrap gap-4 mb-8">
+                    {onStartConversation && (
+                        <button 
+                            onClick={() => onStartConversation(user.id)}
+                            className="bg-cyan-500 hover:bg-cyan-400 text-white font-bold px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all hover:-translate-y-0.5"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                                <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.53A1.5 1.5 0 002.25 4.029c-.296 2.007-.45 4.06-.45 6.151 0 1.912.128 3.824.378 5.727l1.378-1.127A1.5 1.5 0 014.5 14.5H9c2.236 0 4.43-.18 6.57-.53a1.5 1.5 0 001.2-1.2h.001c.294-2 .449-4.043.449-6.12 0-1.921-.131-3.844-.383-5.76A1.5 1.5 0 0015.57 2.53C13.882 2.18 11.96 2 10 2z" clipRule="evenodd" />
+                            </svg>
+                            Send Direct Message
+                        </button>
+                    )}
+                    <button 
+                        onClick={handleViewedUserToggleFollow}
+                        className={`font-bold px-6 py-2.5 rounded-full border transition-all hover:-translate-y-0.5 ${isFollowing ? 'border-red-500/50 text-red-400 bg-red-950/20 hover:bg-red-900/30' : 'border-cyan-500/50 text-cyan-400 bg-cyan-950/20 hover:bg-cyan-900/30'}`}
+                    >
+                        {isFollowing ? 'Unfollow' : 'Follow User'}
+                    </button>
+                </div>
+
+                {/* Communities Section */}
+                <div className="mb-10">
+                    <h3 className="text-xl font-bold text-white mb-4">{user.name}'s Joined Communities</h3>
+                    {userCommunities.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {userCommunities.map(c => (
+                                <CommunityCard key={c.id} community={c} onClick={() => onSelectCommunity(c.id)} isMember />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-6 text-center border border-dashed border-gray-800 rounded-xl">
+                            <p className="text-gray-500">Not a member of any communities yet.</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Creations Section */}
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-white">Workshop Showcase</h3>
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+                            {['All', 'Character', 'World', 'Story'].map(f => (
+                                <button 
+                                    key={f} 
+                                    onClick={() => setCreationsFilter(f as any)} 
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors whitespace-nowrap ${creationsFilter === f ? 'bg-cyan-500 text-white' : 'bg-gray-800 text-gray-400'}`}
+                                >
+                                    {f}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    {filteredCreations.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {filteredCreations.map(creation => (
+                                <CreationCard key={creation.id} creation={creation} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center border border-dashed border-gray-800 rounded-xl">
+                            <p className="text-gray-500">No creations in workshops yet.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -297,15 +445,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             {/* Top Bar with Back Button when in sub-view */}
             {activeView !== 'profile' && (
                 <div className="p-4 border-b border-white/10 flex items-center gap-2 flex-shrink-0 bg-black/50 backdrop-blur-md z-10">
-                    <button onClick={() => setActiveView('profile')} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white">
+                    <button onClick={() => { setActiveView('profile'); setViewedUser(null); }} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white">
                         <ArrowLeftIcon />
                     </button>
                     <span className="font-bold text-white uppercase tracking-wider text-sm">{activeView}</span>
                 </div>
             )}
 
-            {/* Profile Header (Only visible on main profile view) */}
-            {activeView === 'profile' && (
+            {/* Profile Header (Only visible on main profile view and not viewing another user) */}
+            {activeView === 'profile' && !viewedUser && (
                 <div className="relative flex-shrink-0">
                     <div className="h-48 bg-cover bg-center" style={{ backgroundImage: `url(${currentUser.bannerUrl || 'https://via.placeholder.com/1200x300'})` }}>
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black"></div>
@@ -349,13 +497,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             )}
 
             {/* Scrollable Content Area */}
-            <div className={`flex-grow overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 ${activeView === 'profile' ? 'mt-16' : ''}`}>
-                {activeView === 'profile' && <MainProfileView />}
-                {activeView === 'wallet' && <WalletView />}
-                {activeView === 'notifications' && <NotificationsView />}
-                {activeView === 'friends' && <FriendsView />}
-                {activeView === 'feedback' && <FeedbackView />}
-                {activeView === 'settings' && <SettingsView />}
+            <div className={`flex-grow overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 ${activeView === 'profile' && !viewedUser ? 'mt-16' : ''}`}>
+                {viewedUser ? (
+                    <ViewedUserProfileView user={viewedUser} />
+                ) : (
+                    <>
+                        {activeView === 'profile' && <MainProfileView />}
+                        {activeView === 'wallet' && <WalletView />}
+                        {activeView === 'notifications' && <NotificationsView />}
+                        {activeView === 'friends' && <FriendsView />}
+                        {activeView === 'feedback' && <FeedbackView />}
+                        {activeView === 'settings' && <SettingsView />}
+                    </>
+                )}
             </div>
         </div>
     );

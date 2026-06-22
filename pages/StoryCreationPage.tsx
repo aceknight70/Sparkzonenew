@@ -701,7 +701,7 @@ const StoryCreationPage: React.FC<StoryCreationPageProps> = ({ onExit, onCreate,
                                             className="w-full bg-zinc-950 border border-zinc-850 p-2 text-xs rounded-lg text-white font-bold focus:outline-none"
                                         >
                                             {allCharacters.map(c => (
-                                                <option key={c.id} value={c.id}>{c.name} ({c.role || 'Unspecified'})</option>
+                                                <option key={c.id} value={c.id}>{c.name} ({c.epithet || 'Unspecified'})</option>
                                             ))}
                                         </select>
                                     </div>

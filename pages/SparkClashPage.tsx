@@ -997,7 +997,7 @@ export const SparkClashPage: React.FC<SparkClashPageProps> = ({
         "Your energy reserves fell too low without standard recovery. Combine moves renaming with lower cost slots (e.g. 1-2 cost moves).",
         "The element Solars were countered by opposing Lunar. Forge more varied templates in the Forge!"
       ];
-      setAiReport(`🔥 Spark Clash Tactical Assessment (OC-Synergy Core Analyzer)\n\nMVP OC: ${pSquad[0]?.name || 'Your Agent'}\n\nKey Insights:\n1. ${reasons[0]}\n2. ${reasons[1]}\n3. ${reasons[2]}\n\nRecommendation: Fusing templates down in Forge tab generates massive Relic and Epic tiers blanks to increase base stat ceilings!`);
+      setAiReport(`🔥 Spark Clash Tactical Assessment (OC-Synergy Core Analyzer)\n\nMVP OC: ${playerSquad[0]?.name || 'Your Agent'}\n\nKey Insights:\n1. ${reasons[0]}\n2. ${reasons[1]}\n3. ${reasons[2]}\n\nRecommendation: Fusing templates down in Forge tab generates massive Relic and Epic tiers blanks to increase base stat ceilings!`);
     }, 1500);
   };
 

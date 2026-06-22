@@ -95,7 +95,8 @@ export interface UserCreation {
   imageUrl: string;
   status: 'Draft' | 'Published' | 'Active';
   authorId: number;
-  contentMetadata?: ContentMetadata; 
+  contentMetadata?: ContentMetadata;
+  createdAt?: string | number;
 }
 
 export interface CharacterConnection {

@@ -154,8 +154,8 @@ const WorldPage: React.FC<WorldPageProps> = ({
         }
     }, [world]);
 
-    const isMember = localWorld.members.some(m => m.id === currentUser.id);
-    const isAdmin = currentUser.id === localWorld.authorId || localWorld.members.find(m => m.id === currentUser.id)?.role === 'Creator';
+    const isMember = localWorld.members.some(m => String(m.id) === String(currentUser.id));
+    const isAdmin = String(currentUser.id) === String(localWorld.authorId) || localWorld.members.some(m => String(m.id) === String(currentUser.id) && m.role === 'Creator');
 
     const activeLocation = activeLocationId != null
         ? localWorld.locations.flatMap(cat => cat.channels).find(chan => chan.id === activeLocationId)
